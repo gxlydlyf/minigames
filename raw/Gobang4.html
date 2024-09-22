@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset = "utf-8">
+    <title>五子棋</title>
+    <style>
+        canvas{
+            display: block;
+            margin: 50px auto;
+            box-shadow: -2px -2px 2px #EFEFEF, 5px 5px 5px #B9B9B9;
+            color: #fff;
+        }
+    </style>
+<body>
+<canvas id="go" width="450px" height="450px">
+</canvas>
+<script type="text/javascript">
+    var gobang = document.getElementById('go');
+    var context = gobang.getContext('2d');
+    // 设置背景
+    context.strokeStyle = "#000";
+    var logo = new Image();
+    logo.src = "data:image/jpeg;base64,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";
+    logo.onload = function(){
+        context.drawImage(logo, 0, 0, 450, 450);
+        drawChessBoard();
+    }
+
+    // 利用循环画棋盘
+    var drawChessBoard = function(){
+        for(var i=0; i<15; i++){
+            context.moveTo(15 + i*30, 15);
+            context.lineTo(15 + i*30, 435);
+            context.stroke();
+            context.moveTo(15,15 + i*30);
+            context.lineTo(435,15 + i*30);
+            context.stroke();
+        }
+    }
+
+    // 绘制棋子
+    var oneStep = function(i, j, chess){
+        context.beginPath();
+        context.arc(15 + i*30, 15 + j*30, 13, 0, 2 * Math.PI);
+        context.closePath();
+        var gradient = context.createRadialGradient(15 + i*30 + 2, 15 + j*30 - 2, 13, 15 + i*30 + 2, 15 + j*30 - 2, 0);
+        if(chess){
+            gradient.addColorStop(0, "#0A0A0A");
+            gradient.addColorStop(1, "#636766");
+        }
+        else{
+            gradient.addColorStop(0, "#D1D1D1");
+            gradient.addColorStop(1, "#F9F9F9");
+        }
+        context.fillStyle = gradient;
+        context.fill();
+
+    }
+
+    var GobangBoard = [];
+    // 鼠标落子
+    gobang.onclick = function(e){
+        if(over){
+            return;
+        }
+        if(!gobang){
+            return;
+        }
+        var x = e.offsetX;
+        var y = e.offsetY;
+        var i = Math.floor(x / 30); //Math.floor向下取整
+        var j = Math.floor(y / 30);
+        if(GobangBoard[i][j] == 0){
+            oneStep(i, j, gobang);
+            GobangBoard[i][j] = 1;
+
+            for(var k = 0; k < count; k++){
+                if(wins[i][j][k]){
+                    myWin[k]++;
+                    computerWin[k] = 6;
+                    if(myWin[k] == 5){
+                        window.alert("你赢了！")
+                        over = true;
+                    }
+                }
+            }
+            if(!over){
+                gobang = !gobang;
+                computerAI();
+            }
+        }
+
+    }
+
+
+
+    var gobang = true;
+    var over = false;
+    //赢法数组
+    var wins = [];
+
+    //赢法统计数组
+    var myWin = [];
+    var computerWin = [];
+
+
+    for(var i=0; i<15; i++){
+        GobangBoard[i] = [];
+        for(var j=0; j<15; j++){
+            GobangBoard[i][j] = 0;
+        }
+    }
+
+    for(var i=0; i<15; i++){
+        wins[i] = [];
+        for(var j=0; j<15; j++){
+            wins[i][j] = [];
+        }
+    }
+
+    var count = 0;
+
+    //横线
+    for(var i = 0; i < 15; i++){
+        for(var j= 0; j < 11; j++){
+            for(var k = 0; k < 5; k++){
+                wins[i][j+k][count] = true;
+            }
+            count++;
+        }
+    }
+    //竖线
+    for(var i = 0; i < 15; i++){
+        for(var j= 0; j < 11; j++){
+            for(var k = 0; k < 5; k++){
+                wins[j+k][i][count] = true;
+            }
+            count++;
+        }
+    }
+    //斜线
+    for(var i = 0; i < 11; i++){
+        for(var j= 0; j < 11; j++){
+            for(var k = 0; k < 5; k++){
+                wins[i+k][j+k][count] = true;
+            }
+            count++;
+        }
+    }
+    //反斜线
+    for(var i = 0; i < 11; i++){
+        for(var j= 14; j > 3; j--){
+            for(var k = 0; k < 5; k++){
+                wins[i+k][j-k][count] = true;
+            }
+            count++;
+        }
+    }
+
+
+    for(var i = 0; i < count; i++){
+        myWin[i] = 0;
+        computerWin[i] = 0;
+    }
+
+
+
+
+    var computerAI = function(){
+        var myScore = [];
+        var computerScore = [];
+        var max = 0;
+        var u = 0, v = 0;
+        for(var i = 0; i < 15; i++){
+            myScore[i] = [];
+            computerScore[i] = [];
+            for(var j = 0; j < 15; j++){
+                myScore[i][j] = 0;
+                computerScore[i][j] = 0;
+            }
+        }
+        for(var i = 0; i < 15; i++){
+            for(var j = 0; j < 15; j++){
+                if(GobangBoard[i][j] == 0){
+                    for(var k = 0; k < count; k++){
+                        if(wins[i][j][k]){
+                            if(myWin[k] == 1){
+                                myScore[i][j] += 200;
+                            }
+                            else if(myWin[k] == 2){
+                                myScore[i][j] += 400;
+                            }
+                            else if(myWin[k] == 3){
+                                myScore[i][j] += 2000;
+                            }
+                            else if(myWin[k] == 4){
+                                myScore[i][j] += 10000;
+                            }
+
+                            if(computerWin[k] == 1){
+                                computerScore[i][j] += 220;
+                            }
+                            else if(computerWin[k] == 2){
+                                computerScore[i][j] += 420;
+                            }
+                            else if(computerWin[k] == 3){
+                                computerScore[i][j] += 2100;
+                            }
+                            else if(computerWin[k] == 4){
+                                computerScore[i][j] += 20000;
+                            }
+                        }
+                    }
+                    if(myScore[i][j] > max){
+                        max = myScore[i][j];
+                        u = i;
+                        v = j;
+                    }
+                    else if(myScore[i][j] == max){
+                        if(computerScore[i][j] > computerScore[u][v]){
+                            u = i;
+                            v = j;
+                        }
+                    }
+
+                    if(computerScore[i][j] > max){
+                        max = computerScore[i][j];
+                        u = i;
+                        v = j;
+                    }
+                    else if(computerScore[i][j] == max){
+                        if(myScore[i][j] > myScore[u][v]){
+                            u = i;
+                            v = j;
+                        }
+                    }
+                }
+            }
+        }
+        oneStep(u, v, false);
+        GobangBoard[u][v] = 2;
+
+        for(var k = 0; k < count; k++){
+            if(wins[u][v][k]){
+                computerWin[k]++;
+                myWin[k] = 6;
+                if(computerWin[k] == 5){
+                    window.alert("程序赢了！")
+                    over = true;
+                }
+            }
+        }
+        if(!over){
+            gobang = !gobang;
+        }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>俄罗斯方块</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        .left {
+            float: left;
+        }
+
+        .right {
+            float: right;
+        }
+
+        .clear-fixed:after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+
+        .container {
+            width: 400px;
+            height: 650px;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            margin-left: -200px;
+        }
+
+        .container .header {
+            width: 100%;
+            height: 50px;
+            font-size: 25px;
+        }
+
+        .container .header .score-panel,
+        .container .header .title {
+            height: 50px;
+            text-align: center;
+            line-height: 50px;
+        }
+
+        #game-over {
+            display: none;
+            position: absolute;
+            left: 50%;
+            top: 50px;
+            width: 400px;
+            height: 600px;
+            border-radius: 10px;
+            background-color: rgba(0, 0, 0, .6);
+            margin-left: -200px;
+            text-align: center;
+            z-index: 5;
+        }
+
+        #game-over .panel {
+            position: absolute;
+            left: 50%;
+            right: 50%;
+            top: 200px;
+            width: 220px;
+            height: 200px;
+            border-radius: 10px;
+            background-color: white;
+            margin-left: -110px;
+            text-align: center;
+            z-index: 6;
+        }
+
+        #again {
+            display: inline-block;
+            width: 170px;
+            height: 50px;
+            border-radius: 10px;
+            text-decoration: none;
+            background-color: #9F8D77;
+            color: white;
+            font-size: 36px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <div class="header clear-fixed">
+        <div class="title left">俄罗斯方块</div>
+        <div class="score-panel right">
+            <span>得分: </span>
+            <span id="score">0</span>
+        </div>
+    </div>
+    <canvas id="canvas" width="400" height="600"></canvas>
+    <div id="game-over">
+        <div class="panel">
+            <h1 id="state" style="margin-top: 5px;"></h1>
+            <a href="javascript:;" id="again">再试一次</a>
+        </div>
+    </div>
+    <div>TIP: 通过键盘 ← → 键操作左右移动，按 ↓ 键加速下落，按space键变形</div>
+</div>
+</body>
+<script>
+    /*---------------方块----------------*/
+    // L型方块
+    const blockL = [
+        [
+            [0, 0, 1],
+            [1, 1, 1]
+        ],
+        [
+            [1, 0],
+            [1, 0],
+            [1, 1]
+        ],
+        [
+            [1, 1, 1],
+            [1, 0, 0]
+        ],
+        [
+            [1, 1],
+            [0, 1],
+            [0, 1]
+        ]
+    ];
+
+    // J型方块
+    const blockJ = [
+        [
+            [1, 0, 0],
+            [1, 1, 1]
+        ],
+        [
+            [1, 1],
+            [1, 0],
+            [1, 0]
+        ],
+        [
+            [1, 1, 1],
+            [0, 0, 1]
+        ],
+        [
+            [0, 1],
+            [0, 1],
+            [1, 1]
+        ]
+    ];
+
+    // I型方块
+    const blockI = [
+        [
+            [1, 1, 1, 1]
+        ],
+        [
+            [1],
+            [1],
+            [1],
+            [1]
+        ],
+        [
+            [1, 1, 1, 1]
+        ],
+        [
+            [1],
+            [1],
+            [1],
+            [1]
+        ]
+    ];
+
+    // O型方块
+    const blockO = [
+        [
+            [1, 1],
+            [1, 1]
+        ],
+        [
+            [1, 1],
+            [1, 1]
+        ],
+        [
+            [1, 1],
+            [1, 1]
+        ],
+        [
+            [1, 1],
+            [1, 1]
+        ],
+    ];
+
+    // Z型方块
+    const blockZ = [
+        [
+            [1, 1, 0],
+            [0, 1, 1]
+        ],
+        [
+            [0, 1],
+            [1, 1],
+            [1, 0]
+        ],
+        [
+            [1, 1, 0],
+            [0, 1, 1]
+        ],
+        [
+            [0, 1],
+            [1, 1],
+            [1, 0]
+        ]
+    ];
+
+    // S型方块
+    const blockS = [
+        [
+            [0, 1, 1],
+            [1, 1, 0]
+        ],
+        [
+            [1, 0],
+            [1, 1],
+            [0, 1]
+        ],
+        [
+            [0, 1, 1],
+            [1, 1, 0]
+        ],
+        [
+            [1, 0],
+            [1, 1],
+            [0, 1]
+        ]
+    ];
+
+    // T型方块
+    const blockT = [
+        [
+            [1, 1, 1],
+            [0, 1, 0]
+        ],
+        [
+            [0, 1],
+            [1, 1],
+            [0, 1]
+        ],
+        [
+            [0, 1, 0],
+            [1, 1, 1]
+        ],
+        [
+            [1, 0],
+            [1, 1],
+            [1, 0]
+        ]
+    ];
+
+    /*-----------map--------------*/
+    const ROWS = 30;
+    const COLS = 20;
+    const BLOCK_SIZE = 20;
+</script>
+<script>
+    // 深拷贝 矩阵
+    function deepCopyMatrix(matrix) {
+        var arr = [];
+        matrix.map(function (i) {
+            if (i instanceof Array) {
+                arr.push(deepCopyMatrix(i));
+            } else {
+                arr.push(i);
+            }
+        });
+        return arr;
+    }
+
+    // 矩阵与方块合并
+    function mergeMatrix(child, parent, isColOut) {
+        const row = child.row;
+        const col = child.col;
+        const arr = child.arr;
+        isColOut = isColOut || false;
+        var newParent = deepCopyMatrix(parent);
+        for (var i = 0; i < arr.length; i++) {
+            if (newParent[row + i] && newParent[row + i] instanceof Array) {
+                for (var j = 0; j < 4; j++) {
+                    var num = newParent[row + i][col + j];
+                    var newNum = arr[i][j];
+                    if (isColOut || (col + j >= 0 && newNum)) {
+                        newParent[row + i][col + j] = num === 1 ? 1 : newNum;
+                    }
+                }
+            }
+        }
+        return newParent;
+    }
+
+    // 生成空矩阵
+    function generatorMatrix() {
+        var matrix = [];
+        for (var row = 0; row < ROWS; row++) {
+            var newLine = [];
+            for (var col = 0; col < COLS; col++) {
+                newLine.push(0);
+            }
+            matrix.push(newLine);
+        }
+        return matrix;
+    }
+
+    // dom选择器
+    function $(el) {
+        return /^#\S+/.test(el) ? document.querySelector(el) : document.querySelectorAll(el);
+    }
+</script>
+<script>
+    ;
+    (function (win) {
+        // 方块对象
+        const Block = function (roates) {
+            this.x = COLS / 2;
+            this.y = 0;
+            this.roates = roates || blockL;
+            this.dir = 0;
+            this.data = this.roates[this.dir];
+        }
+
+        Block.prototype = {
+            // 旋转
+            rotate: function (matrix) {
+                var tempDir = this.dir;
+                tempDir++;
+                tempDir = tempDir % 4;
+                var child = {
+                    row: this.y,
+                    col: this.x - 2,
+                    arr: this.roates[tempDir],
+                };
+                var newMatrix = mergeMatrix(child, deepCopyMatrix(matrix), true);
+                // 不能出界
+                for (var i in newMatrix) {
+                    if (newMatrix[i].length > COLS || newMatrix[i][-1] !== undefined) {
+                        return;
+                    }
+                }
+                this.dir++;
+                this.dir = this.dir % 4;
+                this.data = this.roates[this.dir];
+            },
+            // 是否两侧越界
+            isContactBorder: function (matrix, dir) {
+                for (var row = 0; row < matrix.length; row++) {
+                    if (dir === 'left') {
+                        if (matrix[row][0] === 1) {
+                            return true;
+                        }
+                    } else if (dir === 'right') {
+                        if (matrix[row][COLS - 1] === 1) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            },
+            // 方块是否与矩阵重叠
+            checkMatrix: function (matrix, { x, y }) {
+                return matrix[x][y] === 1;
+            },
+            // 碰撞检查
+            Collision: function (matrix, child, dir) {
+                const row = child.row;
+                const col = child.col;
+                const arr = child.arr;
+                // 左右 | 旋转
+                for (var x = 0; x < arr.length; x++) {
+                    for (var y = 0; y < arr[x].length; y++) {
+                        if (arr[x][y] === 1) {
+                            var pos = {
+                                x: x + row,
+                                y: y + col
+                            };
+                            if (dir === 'right' || dir === 'left') {
+                                pos.y = y + col + (dir === 'right' ? 1 : -1);
+                            }
+                            if (this.checkMatrix(matrix, pos)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false
+            },
+            // 左右移动
+            move: function (num, matrix) {
+                var child = {
+                    row: this.y,
+                    col: this.x - 2,
+                    arr: this.data,
+                };
+                // 不能出界
+                var newMatrix = mergeMatrix(child, generatorMatrix())
+                if (this.isContactBorder(newMatrix, num > 0 ? 'right' : 'left')) {
+                    return;
+                }
+                // 碰撞检查
+                child.col + num
+                if (this.Collision(matrix, child, num > 0 ? 'right' : 'left')) {
+                    return;
+                }
+                this.x += num;
+            },
+            down: function () {
+                this.y++;
+            }
+        }
+
+        // 方块工厂对象，创建方块
+        const BlockFactory = {
+            blockTypes: ['L', 'J', 'I', 'O', 'Z', 'S', 'T'],
+            create: function (type) {
+                switch (type) {
+                    case 'L':
+                        return new Block(blockL);
+                    case 'J':
+                        return new Block(blockJ);
+                    case 'I':
+                        return new Block(blockI);
+                    case 'O':
+                        return new Block(blockO);
+                    case 'Z':
+                        return new Block(blockZ);
+                    case 'S':
+                        return new Block(blockS);
+                    case 'T':
+                        return new Block(blockT);
+                    default:
+                        return new Block(blockL);
+                }
+            },
+            rand: function () {
+                return this.create(
+                    this.blockTypes[~~(Math.random() * this.blockTypes.length)]
+                );
+            }
+        };
+
+        win.Block = Block;
+        win.BlockFactory = BlockFactory;
+    })(window);
+</script>
+<script>
+    ;
+    (function (win, doc) {
+        const Game = function (id) {
+            this.canvas = $(id || '#canvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.rows = ROWS;
+            this.cols = COLS;
+            this.latticeSize = BLOCK_SIZE;
+            this.canvas.width = BLOCK_SIZE * this.cols;
+            this.canvas.height = BLOCK_SIZE * this.rows;
+
+            // 绑定键盘事件
+            this.addEvent();
+
+            // 初始化
+            this.init();
+        }
+
+        Game.prototype = {
+            init: function () {
+                // 所有的块
+                this.matrix = generatorMatrix();
+                this.timer = null;
+                this.currentBlock = null;
+                this.blockFactory = BlockFactory;
+                this.score = 0;
+                this.isOver = false;
+
+                $('#score').innerText = this.score;
+            },
+            // 重绘所有的已经确定的方块
+            draw: function () {
+                const matrix = this.matrix;
+                const ctx = this.ctx;
+                const canvas = this.canvas;
+                const latticeSize = this.latticeSize;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                var tempMatrix = deepCopyMatrix(matrix)
+
+                // 合并到 matrix
+                if (this.currentBlock) {
+                    const x = this.currentBlock.x;
+                    const y = this.currentBlock.y;
+                    const data = this.currentBlock.data;
+                    var child = {
+                        row: y,
+                        col: x - 2,
+                        arr: data
+                    }
+                    tempMatrix = mergeMatrix(child, tempMatrix)
+                }
+
+                // 绘制已经确定的格子
+                for (var y = 0; y < tempMatrix.length; y++) {
+                    var row = tempMatrix[y];
+                    for (var x = 0; x < row.length; x++) {
+                        var col = row[x];
+                        if (col === 0) {
+                            ctx.fillStyle = '#eee';
+                        } else {
+                            ctx.fillStyle = '#2196f3';
+                        }
+                        ctx.fillRect(
+                            latticeSize * x + 1,
+                            y * latticeSize + 1,
+                            latticeSize - 2, latticeSize - 2,
+                        )
+                    }
+                }
+            },
+            // 生成方块
+            generatorBlock: function () {
+                this.currentBlock = this.blockFactory.rand();
+                this.fastMoveDown(false);
+            },
+            // 消除所有已经满一行的方块
+            fullLine: function () {
+                for (var i = 0; i < this.matrix.length; i++) {
+                    if (this.matrix[i].indexOf(0) === -1) {
+                        this.matrix.splice(i, 1);
+                        var newLine = [];
+                        for (var j = 0; j < this.cols; j++) {
+                            newLine.push(0);
+                        }
+                        this.matrix.unshift(newLine);
+                        // 更新分数
+                        this.updateScore();
+                    }
+                }
+            },
+            // 当前方块与矩阵合并
+            checkMerge: function () {
+                const x = this.currentBlock.x;
+                const y = this.currentBlock.y;
+                const data = this.currentBlock.data;
+                var tempMatrix = deepCopyMatrix(this.matrix);
+                // 到底了
+                if (y + data.length === tempMatrix.length) {
+                    return true;
+                }
+                // 方块碰撞
+                // 相邻两行，相同的列， 都 === 1
+                for (var row = 0; row < data.length; row++) {
+                    var yAxis = y + row;
+                    for (var col = 0; col < tempMatrix[yAxis].length; col++) {
+                        if (data[row][col - x + 2] === 1 && tempMatrix[yAxis + 1][col] === 1) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            },
+            // 合并当前方块
+            merge: function () {
+                const x = this.currentBlock.x;
+                const y = this.currentBlock.y;
+                const data = this.currentBlock.data;
+                var child = {
+                    row: y,
+                    col: x - 2,
+                    arr: data
+                }
+                this.matrix = mergeMatrix(child, this.matrix)
+                // 找到并消除一行
+                this.fullLine();
+            },
+            // 快速下降
+            fastMoveDown: function (isFast) {
+                this.fast = isFast;
+                clearInterval(this.timer);
+                var self = this;
+                if (isFast) {
+                    this.timer = setInterval(function () {
+                        self.runtime();
+                    }, 10);
+                } else {
+                    this.timer = setInterval(function () {
+                        self.runtime();
+                    }, 500);
+                }
+            },
+            addEvent: function () {
+                var self = this;
+                doc.addEventListener('keyup', function (e) {
+                    if (self.isOver) {
+                        return false;
+                    }
+                    // space key up
+                    if (e.keyCode === 32) {
+                        self.currentBlock.rotate(self.matrix);
+                        self.draw();
+                    }
+                    // down key up
+                    if (e.keyCode === 40) {
+                        self.fastMoveDown(false);
+                    }
+                });
+                doc.addEventListener('keydown', function (e) {
+                    if (self.isOver) {
+                        return false;
+                    }
+                    // down key down
+                    if (self.fast === false && e.keyCode === 40) {
+                        self.fastMoveDown(true);
+                    }
+                    // left key down
+                    if (e.keyCode === 37) {
+                        self.currentBlock.move(-1, self.matrix);
+                        self.draw();
+                    }
+                    // right key down
+                    if (e.keyCode === 39) {
+                        self.currentBlock.move(1, self.matrix);
+                        self.draw();
+                    }
+                });
+            },
+            start: function () {
+                this.generatorBlock();
+                // 绘制所有方块
+                this.draw();
+                // 游戏主逻辑
+                this.runtime();
+                // 快速下降
+                this.fastMoveDown(false);
+            },
+            runtime: function () {
+                // 绘制所有格子
+                this.draw();
+                if (this.isGameOver() === false) {
+                    // 判断到底是否有满一行的
+                    if (this.checkMerge()) {
+                        // 合并
+                        this.merge();
+                        // 生成新的一行
+                        this.generatorBlock();
+                    } else {
+                        // 格子下落
+                        this.currentBlock.down();
+                    }
+                } else {
+                    // game over
+                    clearInterval(this.timer);
+                    this.isOver = true;
+                    $('#state').innerHTML = '游戏结束<br>得分:<br>' + this.score;
+                    $('#state').style.color = 'red';
+                    $('#game-over').style.display = 'block';
+                }
+            },
+            isGameOver: function () {
+                return this.matrix[0].indexOf(1) !== -1;
+            },
+            // 更新分数显示
+            updateScore() {
+                this.score += 10;
+                $('#score').innerText = this.score;
+            }
+        }
+
+        var game = new Game();
+        game.start();
+
+        $('#again').addEventListener('click', function () {
+            $('#game-over').style.display = 'none';
+            game.init();
+            game.start();
+        });
+
+        win.Game = Game;
+    })(window, document);
+</script>
+
+</html>

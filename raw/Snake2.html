@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>贪吃蛇-极简版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        .container {
+            width: 1000px;
+            height: 800px;
+            margin: 10px auto;
+            background-color: antiquewhite;
+            position: relative;
+        }
+
+        .food {
+            width: 20px;
+            height: 20px;
+            background-color: lightcoral;
+            position: absolute;
+        }
+
+        /* .snake_body {
+            position: relative;
+        } */
+
+        .snake_body .cube {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: #bff;
+        }
+
+        .cube.head {
+            background-color: rgb(4, 147, 250);
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <ul class="snake_body">
+        <!-- <li class="cube"></li>
+        <li class="cube"></li>
+        <li class="cube head"></li> -->
+    </ul>
+
+</div>
+
+
+<script>
+    const container = document.querySelector('.container')
+
+    const ul_body = document.querySelector('.snake_body')
+
+    /*需求：
+   1.小蛇朝着某个方向不断运动 （头部运动 身体也动 每节身体运动的位置是下一节的位置）
+   2.上下左右能控制小蛇的运动方向
+   3.随机生成食物
+   4.碰到食物会增大
+   5.碰到四周或自己 游戏结束
+   6.采用vue 操作数据的思想 */
+
+    let snake_arr = [
+        { id: 0, left: 100, top: 100, move_direction: 'r' },
+        { id: 1, left: 80, top: 100 },
+        { id: 2, left: 60, top: 100 }]
+
+    render_snake()
+    // 1.根据数组渲染小蛇  为了让小蛇头部在右，所以最后渲染
+    function render_snake(flag = false) {
+        if (flag) {
+            // 当添加身体时，先把ul里面的li全部清空再进行渲染
+            // 这种做法会让transition的效果失效
+            ul_body.innerHTML = ''
+        }
+
+        // 从后往前 向ul里面添加li标签
+        for (let i = snake_arr.length - 1; i >= 0; i--) {
+
+            let li = document.createElement('li')
+            // 第0个是小蛇的头部 多一个属性控制移动方向
+            if (snake_arr[i].id == 0) {
+                li.classList.add('cube', 'head')
+            } else if (snake_arr[i].id == snake_arr.length - 1) {
+                li.innerText = i
+                li.classList.add('cube')
+            }
+            else {
+                li.innerText = ''
+                li.classList.add('cube')
+            }
+            li.style.left = snake_arr[i].left + 'px'
+            li.style.top = snake_arr[i].top + 'px'
+
+            ul_body.append(li)
+        }
+    }
+
+    // 2.增加1节身体
+    function add_body(n = 1) {
+        for (let i = 0; i < n; i++) {
+            let length = snake_arr.length
+            // 直接加在最后一节身体的上面  虽然当时重合在了一起 但是下次移动时，倒数第二个位置会变到倒数第三个cube的位置，倒数第一个位置相当于没变动，就露出来了
+            snake_arr.push({ id: length, left: snake_arr[length - 1].left, top: snake_arr[length - 1].top })
+        }
+        render_snake(true)
+        // console.log(snake_arr)
+    }
+
+    // 3. 根据头部的方向移动
+    function snake_move() {
+        let d = snake_arr[0].move_direction
+
+        /* lis:    [尾 5 4 3 2 1 0 头]
+       snake_arr:  [头 0 1 2 3 4 5 尾]*/
+
+        // 如果是操控dom元素的位置的话会比较难 所以直接改变存放小蛇数据的数组
+        // 让每一节小蛇的身体都获取下一节的位置
+        for (let i = snake_arr.length - 1; i >= 1; i--) {
+            snake_arr[i].left = snake_arr[i - 1].left
+            snake_arr[i].top = snake_arr[i - 1].top
+        }
+
+        // 头部单独处理 根据移动方向进行位置变化  这里取到20是因为小蛇每一节身体都是20*20px
+        switch (d) {
+            case 'l':
+                snake_arr[0].left -= 20
+                break
+            case 'r':
+                snake_arr[0].left += 20
+                break
+            case 'u':
+                snake_arr[0].top -= 20
+                break
+            case 'd':
+                snake_arr[0].top += 20
+                break
+        }
+
+        // 数组变动之后，再重新进行渲染 这种方法的优点是代码量比较少 缺点是无法使用transition效果，但是使用过渡效果也会有bug，主要是拐弯时过渡效果会使得小蛇身体出现重影
+        render_snake(true)
+    }
+
+    let auto_move = setInterval(snake_move, 100)
+
+    // 4.鼠标按键改变方向 其实是改变数组中head的属性值，然后移动时是看属性值进行移动的
+
+    // 节流阀的做法：定义lock
+    let lock = false
+    // 判断一下是否和正在移动的方向相反 如果是的话不对用户的操作作出反应
+    function test_key(key) {
+        if (!lock) {
+            lock = true
+            // console.log('我执行了');
+            let d = snake_arr[0].move_direction
+            // 判断一下按压的key是水平的还是垂直的
+            let key_type = 'vertical'
+            if (key == 'ArrowLeft' || key == 'ArrowRight') {
+                key_type = 'level'
+            } else {
+                key_type = 'vertical'
+            }
+
+            // 如果用户想让小蛇水平移动 且此时小蛇已经是水平移动状态了 那么就不做操作
+            if (key_type == 'level' && (d == 'r' || d == 'l')) {
+                // console.log('小蛇正在水平移动');
+            } else if (key_type == 'vertical' && (d == 'u' || d == 'd')) {
+                // console.log('小蛇正在垂直移动');
+            } else {
+                key_change_direction(key)
+            }
+            setTimeout(() => {
+                lock = false
+            }, 50)
+        }
+    }
+    // 根据按键改变小蛇的头部方向
+    function key_change_direction(key) {
+
+        switch (key) {
+            case 'ArrowLeft':
+                snake_arr[0].move_direction = 'l'
+                break
+            case 'ArrowRight':
+                snake_arr[0].move_direction = 'r'
+                break
+            case 'ArrowUp':
+                snake_arr[0].move_direction = 'u'
+                break
+            case 'ArrowDown':
+                snake_arr[0].move_direction = 'd'
+                break
+            default:
+                console.log(key);
+        }
+
+
+    }
+
+    let timer = null
+    function debounce(key) {
+        if (timer) {
+            // console.log('已经有了一个定时器:' + timer);
+            clearTimeout(timer)
+        }
+        timer = setTimeout(() => {
+            test_key(key)
+        }, 50)
+    }
+
+    // 贪吃蛇要用keyup事件，否则 按住 ← 再按其他的按键，会同时执行这两个按键的事件
+    window.addEventListener('keyup', (e) => {
+        // console.log(e.key);
+        // 1.使用防抖函数来 减少 快速按压两个按键时咬到自己的bug 的发生频率 （改成100ms几乎完全不会触发这个bug）
+        // 如果把211行代码改成0，在 小蛇向下移动时，同时按下 → ↑ （先随便按一个 再同时按下相反的按键）就会触发这个bug，其他方向也有这个bug
+        // （bug原因可能是因为在按下→键时，js代码已经改变了小蛇移动的方向 从d变成了r，但是100ms才移动一次，这时候
+        // 小蛇还未向右移动，恰巧用户又按下了↑，导致snake_move执行时，小蛇移动方向变成了u，是向上移动的 就触发了这个bug）
+        // debounce(e.key)
+
+        // 重点是保证永远只有一个事件执行（防抖是只允许最后一个执行，节流是只允许第一个事件执行）
+
+        // 2.如果不用防抖 小蛇虽然转向没延迟了 但是这个bug更容易触发了
+        test_key(e.key)
+
+        // 3.使用节流阀也行，但是其实本质是让节流阀来限制用户的操作频率 （如果在100ms之内按下了两次按键，只有第一次会被执行 第二次无效）
+        // test_key(e.key)
+
+    })
+
+    // 5.随机在地图上生成食物
+    function random_food() {
+        // 0 - width/height 还得是20的倍数 这样20px * 20px的小蛇才能和食物完全重合
+        let random_left = Math.floor(Math.random() * container.clientWidth / 20)
+        let random_top = Math.floor(Math.random() * container.clientHeight / 20)
+
+        let food = document.createElement('div')
+        food.classList.add('food')
+        food.style.left = random_left * 20 + 'px'
+        food.style.top = random_top * 20 + 'px'
+
+        container.append(food)
+    }
+
+    random_food()
+    // 6.吃到食物身体增加1节
+
+    // 获取到指定元素的相对位置
+    function get_position(domEle) {
+        return [domEle.offsetLeft, domEle.offsetTop]
+    }
+
+    // 吃食物的检测与后续操作
+    function eat_food() {
+        let test_head_position
+        // 获得食物的位置 因为食物是不会动的，所以获取食物的位置只需要获取一次即可
+        let food = document.querySelector('.food')
+        let [fl, ft] = get_position(food)
+
+        // 检测小蛇头部是否与食物的位置重合
+        test_head_position = setInterval(() => {
+            // console.log(test_head_position); //用log的频率来检测定时器是否被清除了
+
+            // 小蛇是在不断移动的，所以需要不断重新获取小蛇的位置才行
+            let head = document.querySelector('.snake_body .head')
+            let [hl, ht] = get_position(head)
+
+            if (hl == fl && ht == ft) {
+                // 吃到了食物的时候再清除定时器
+                clearInterval(test_head_position)
+                // console.log('吃到了食物');
+                // 删除被吃掉的食物
+                food.parentElement.removeChild(food)
+                // 随机生成一个新的食物
+                random_food()
+                // 执行这个函数 以便获取新食物的位置
+                eat_food()
+                // 增加n节身体长度
+                add_body(1)
+            }
+        }, 100)
+    }
+
+    eat_food()
+
+    // 7.增加失败条件
+    let container_w = container.offsetWidth
+    let container_h = container.offsetHeight
+
+    let test_failue = setInterval(() => {
+
+        // 跑出圈外判负
+        if (snake_arr[0].left >= container_w || snake_arr[0].left < 0 || snake_arr[0].top >= container_h || snake_arr[0].top < 0) {
+            // location.reload()
+            // alert('碰壁了！')
+            // 不清除定时器的话会一直alert很多遍 但是如果把reload放到alert上面就不用清除定时器了
+            clearInterval(test_failue)
+            clearInterval(auto_move)
+        }
+        // 碰到自己的身体也判负
+        else if (test_body()) {
+            // location.reload()
+            // alert('咬着自己了！')
+            clearInterval(test_failue)
+            clearInterval(auto_move)
+        }
+        // 胜利条件 没有写
+        // else if(){
+
+        // }
+
+    }, 100)
+
+    // 检测是否撞到了自己
+    function test_body() {
+        // let cubes = document.querySelectorAll('.snake_body .cube')
+        // let head = document.querySelector('.snake_body .head')
+        // let [hl, ht] = get_position(head)
+        // for (let i = 0; i < cubes.length - 1; i++) {
+        //     let [bl, bt] = get_position(cubes[i])
+        //     if (hl == bl && ht == bt) {
+        //         return true
+        //     }
+        // }
+        // 没有问题
+        // return false
+
+        // 通过小蛇存放的位置来判断头部是否和某一个身体部位重合
+        console.log(snake_arr[0].move_direction);
+        for (let i = snake_arr.length - 1; i > 0; i--) {
+            if (snake_arr[0].left == snake_arr[i].left && snake_arr[0].top == snake_arr[i].top) {
+                return true
+            }
+        }
+        return false
+    }
+</script>
+</body>
+
+</html>

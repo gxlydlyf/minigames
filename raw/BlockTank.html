@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>方块坦克大战</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        .left {
+            float: left;
+        }
+
+        .right {
+            float: right;
+        }
+
+        .clear-fixed:after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+
+        .container {
+            width: 400px;
+            height: 650px;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            margin-left: -200px;
+        }
+
+        .container .header {
+            width: 100%;
+            height: 50px;
+            font-size: 25px;
+        }
+
+        .container .header .score-panel {
+            font-size: 20px;
+        }
+
+        .container .header .score-panel,
+        .container .header .title {
+            height: 50px;
+            text-align: center;
+            line-height: 50px;
+        }
+
+        #game-over {
+            display: none;
+            position: absolute;
+            left: 50%;
+            top: 50px;
+            width: 400px;
+            height: 600px;
+            border-radius: 10px;
+            background-color: rgba(0, 0, 0, .6);
+            margin-left: -200px;
+            text-align: center;
+            z-index: 5;
+        }
+
+        #game-over .panel {
+            position: absolute;
+            left: 50%;
+            right: 50%;
+            top: 200px;
+            width: 220px;
+            height: 200px;
+            border-radius: 10px;
+            background-color: white;
+            margin-left: -110px;
+            text-align: center;
+            z-index: 6;
+        }
+
+        #again {
+            display: inline-block;
+            width: 170px;
+            height: 50px;
+            border-radius: 10px;
+            text-decoration: none;
+            background-color: #9F8D77;
+            color: white;
+            font-size: 36px;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <div class="header clear-fixed">
+        <div class="title left">方块坦克大战</div>
+        <div class="score-panel left">
+            <span>&emsp;LV: </span>
+            <span id="level">1</span>
+        </div>
+        <div class="score-panel right">
+            <span>得分: </span>
+            <span id="score">0</span>
+        </div>
+    </div>
+    <canvas id="canvas" width="400" height="600"></canvas>
+    <div id="game-over">
+        <div class="panel">
+            <h1 id="state" style="margin-top: 5px;"></h1>
+            <a href="javascript:;" id="again">再试一次</a>
+        </div>
+    </div>
+    <div>TIP: 通过键盘 ↑ ↓ ← → 键操作转向和移动，按space键发射炮弹</div>
+</div>
+</body>
+<script>
+    /*--------------map--------------*/
+    const ROWS = 30;
+    const COLS = 20;
+    const BLOCK_SIZE = 20;
+
+    /*--------------坦克方块--------------*/
+    const blockAlive = [
+        // up
+        [
+            [0, 1, 0],
+            [1, 1, 1],
+            [1, 0, 1]
+        ],
+        // right
+        [
+            [1, 1, 0],
+            [0, 1, 1],
+            [1, 1, 0]
+        ],
+        // down
+        [
+            [1, 0, 1],
+            [1, 1, 1],
+            [0, 1, 0]
+        ],
+        // left
+        [
+            [0, 1, 1],
+            [1, 1, 0],
+            [0, 1, 1]
+        ]
+    ];
+
+    const blockDead = [
+        [
+            [1, 0, 1],
+            [0, 1, 0],
+            [1, 0, 1]
+        ]
+    ];
+
+    const blockBullet = [
+        [
+            [1]
+        ]
+    ];
+</script>
+<script>
+    // 深拷贝 矩阵
+    function deepCopyMatrix(matrix) {
+        var arr = [];
+        matrix.map(function (i) {
+            if (i instanceof Array) {
+                arr.push(deepCopyMatrix(i));
+            } else {
+                arr.push(i);
+            }
+        });
+        return arr;
+    }
+
+    // 矩阵与方块合并
+    function mergeMatrix(child, parent, isColOut) {
+        const row = child.row;
+        const col = child.col;
+        const arr = child.arr;
+        isColOut = isColOut || false;
+        var newParent = deepCopyMatrix(parent);
+        for (var i = 0; i < arr.length; i++) {
+            if (newParent[row + i] && newParent[row + i] instanceof Array) {
+                for (var j = 0; j < 4; j++) {
+                    var num = newParent[row + i][col + j];
+                    var newNum = arr[i][j];
+                    if (isColOut || (col + j >= 0 && newNum)) {
+                        newParent[row + i][col + j] = num === 1 ? 1 : newNum;
+                    }
+                }
+            }
+        }
+        return newParent;
+    }
+
+    // 生成空矩阵
+    function generatorMatrix() {
+        var matrix = [];
+        for (var row = 0; row < ROWS; row++) {
+            var newLine = [];
+            for (var col = 0; col < COLS; col++) {
+                newLine.push(0);
+            }
+            matrix.push(newLine);
+        }
+        return matrix;
+    }
+
+    // dom选择器
+    function $(el) {
+        return /^#\S+/.test(el) ? document.querySelector(el) : document.querySelectorAll(el);
+    }
+</script>
+<script >
+    ;
+    (function (win) {
+        const Tank = function (roates) {
+            this.x = COLS / 2 - 1;
+            this.y = ROWS - 3;
+            this.roates = roates || blockAlive;
+            this.dir = 0;
+            this.data = this.roates[this.dir];
+        }
+
+        Tank.prototype = {
+            frame: 0,
+            // 旋转
+            rotate: function () {
+                this.data = this.roates[this.dir];
+            },
+            // 是否四周越界
+            isContactBorder: function (matrix) {
+                var dir = this.dir;
+                if ([1, 3].indexOf(dir) > -1) {
+                    for (var row = 0; row < matrix.length; row++) {
+                        if (dir === 3) {
+                            if (matrix[row][0] === 1) {
+                                return true;
+                            }
+                        } else if (dir === 1) {
+                            if (matrix[row][COLS - 1] === 1) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                if ([0, 2].indexOf(dir) > -1) {
+                    for (var col = 0; col < matrix[0].length; col++) {
+                        if (dir === 0) {
+                            if (matrix[0][col] === 1) {
+                                return true;
+                            }
+                        } else if (dir === 2) {
+                            if (matrix[ROWS - 1][col] === 1) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            },
+            // 方块是否与矩阵重叠
+            checkMatrix: function (matrix, { x, y }) {
+                return matrix[x][y] === 1;
+            },
+            // 碰撞检查
+            Collision: function (matrix, child) {
+                const row = child.row;
+                const col = child.col;
+                const arr = child.arr;
+                var dir = this.dir;
+
+                var pos = {
+                    x: row,
+                    y: col
+                };
+
+                if (dir === 1 || dir === 3) {
+                    pos.y = col + (dir === 1 ? 3 : -1);
+                    for (var i = 0; i < arr.length; i++) {
+                        pos.x = row + i;
+                        if (this.checkMatrix(matrix, pos)) {
+                            return true;
+                        }
+                    }
+                }
+                if (dir === 0 || dir === 2) {
+                    pos.x = row + (dir === 0 ? -1 : 3);
+                    for (var i = 0; i < arr.length; i++) {
+                        pos.y = col + i;
+                        if (this.checkMatrix(matrix, pos)) {
+                            return true;
+                        }
+                    }
+                }
+                return false
+            },
+            // 移动
+            move: function (num, matrix) {
+                var child = {
+                    row: this.y,
+                    col: this.x,
+                    arr: this.data
+                };
+                // 不能出界
+                var newMatrix = mergeMatrix(child, generatorMatrix());
+                if (this.isContactBorder(newMatrix)) {
+                    return;
+                }
+                // 碰撞检查
+                if (this.Collision(matrix, child)) {
+                    return;
+                }
+                if ([0, 2].indexOf(this.dir) > -1) { // 上下
+                    this.y += num;
+                }
+                if ([1, 3].indexOf(this.dir) > -1) { // 左右
+                    this.x += num;
+                }
+            },
+            onDead: function () {
+                this.roates = blockDead;
+                this.data = this.roates[0];
+            }
+        }
+
+        win.Tank = Tank;
+    })(window);
+</script>
+<script >
+    ;
+    (function (win) {
+        const Bullet = function (owner) {
+            this.owner = owner;
+            this.dir = owner.dir;
+            this.roates = blockBullet;
+            this.data = this.roates[0];
+
+            this.init();
+        }
+
+        Bullet.prototype = {
+            init: function () {
+                var dir = this.dir;
+                if (dir === 0) {
+                    this.x = this.owner.x + 1;
+                    this.y = this.owner.y;
+                } else if (dir === 1) {
+                    this.x = this.owner.x + 2;
+                    this.y = this.owner.y + 1;
+                } else if (dir === 2) {
+                    this.x = this.owner.x + 1;
+                    this.y = this.owner.y + 2;
+                } else if (dir === 3) {
+                    this.x = this.owner.x;
+                    this.y = this.owner.y + 1;
+                }
+            },
+            isContactBorder: function () {
+                var dir = this.dir;
+                if (dir === 0 && this.y === 0) {
+                    return true;
+                } else if (dir === 1 && this.x === COLS - 1) {
+                    return true;
+                } else if (dir === 2 && this.y === ROWS - 1) {
+                    return true;
+                } else if (dir === 3 && this.x === 0) {
+                    return true;
+                }
+                return false;
+            },
+            Collision: function (matrix) {
+                var dir = this.dir;
+                if (dir === 0 && (this.y === 0 || matrix[this.y - 1][this.x] === 1)) {
+                    return true;
+                } else if (dir === 1 && (this.x === COLS - 1 || matrix[this.y][this.x + 1] === 1)) {
+                    return true;
+                } else if (dir === 2 && (this.y === ROWS - 1 || matrix[this.y + 1][this.x] === 1)) {
+                    return true;
+                } else if (dir === 3 && (this.x === 0 || matrix[this.y][this.x - 1] === 1)) {
+                    return true;
+                }
+                return false;
+            },
+            move: function () {
+                var dir = this.dir;
+                if (dir === 0) {
+                    this.y--;
+                } else if (dir === 1) {
+                    this.x++;
+                } else if (dir === 2) {
+                    this.y++;
+                } else if (dir === 3) {
+                    this.x--;
+                }
+            }
+        };
+
+        win.Bullet = Bullet;
+    })(window);
+</script>
+<script>
+    ;
+    (function (win, doc) {
+        const Game = function (id) {
+            this.canvas = $(id || '#canvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.rows = ROWS;
+            this.cols = COLS;
+            this.latticeSize = BLOCK_SIZE;
+            this.canvas.width = BLOCK_SIZE * this.cols;
+            this.canvas.height = BLOCK_SIZE * this.rows;
+
+            // 绑定键盘事件
+            this.addEvent();
+
+            // 初始化
+            this.init();
+        }
+
+        Game.prototype = {
+            enemyList: [],
+            enemyPos: [
+                { x: 0, y: 0, dir: 2 },
+                { x: COLS / 2 - 1, y: 0, dir: 2 },
+                { x: COLS - 3, y: 0, dir: 2 },
+                { x: 0, y: ROWS / 2 - 1, dir: 1 },
+                { x: COLS - 3, y: ROWS / 2 - 1, dir: 3 },
+                { x: 0, y: ROWS - 3, dir: 0 },
+                { x: COLS / 2 - 1, y: ROWS - 3, dir: 0 },
+                { x: COLS - 3, y: ROWS - 3, dir: 0 }
+            ],
+            bulletList: [],
+            init: function () {
+                // 所有的块
+                this.matrix = generatorMatrix();
+                this.timer = null;
+                // 玩家坦克
+                this.player = new Tank();
+                this.score = 0;
+                this.level = 1;
+                this.isOver = false;
+                this.enemyList = [];
+                this.bulletList = [];
+                this.step = 60;
+
+                $('#score').innerText = this.score;
+                $('#level').innerText = this.level;
+            },
+            addEvent: function () {
+                var self = this;
+
+                doc.addEventListener('keydown', function (e) {
+                    if (self.isOver) {
+                        return false;
+                    }
+
+                    var speed = 0, dir = 0;
+
+                    // left key down
+                    if (e.keyCode === 37) {
+                        speed = -1;
+                        dir = 3;
+                    }
+                    // right key down
+                    if (e.keyCode === 39) {
+                        speed = 1;
+                        dir = 1;
+                    }
+                    // up key down
+                    if (e.keyCode === 38) {
+                        speed = -1;
+                        dir = 0;
+                    }
+                    // down key down
+                    if (e.keyCode === 40) {
+                        speed = 1;
+                        dir = 2;
+                    }
+
+                    if ([37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+                        if (self.player.dir === dir) {
+                            self.player.move(speed, self.mergeMatrix(self.matrix));
+                        } else {
+                            self.player.dir = dir;
+                            self.player.rotate();
+                        }
+                    }
+
+                    self.draw();
+                });
+
+                doc.addEventListener('keyup', function (e) {
+                    if (self.isOver) {
+                        return false;
+                    }
+                    if (e.keyCode === 32) {
+                        var bullet = new Bullet(self.player);
+                        self.bulletList.push(bullet);
+                    }
+                });
+            },
+            mergeMatrix: function (matrix) {
+                var tempMatrix = deepCopyMatrix(matrix);
+
+                // 合并 player 到 matrix
+                if (this.player) {
+                    const x = this.player.x;
+                    const y = this.player.y;
+                    const data = this.player.data;
+                    var child = {
+                        row: y,
+                        col: x,
+                        arr: data
+                    }
+                    tempMatrix = mergeMatrix(child, tempMatrix);
+                }
+                // 合并 enemy 到 matrix
+                if (this.enemyList.length > 0) {
+                    this.enemyList.map(function (item) {
+                        mergeAllMatrix(item);
+                    });
+                }
+                if (this.bulletList.length > 0) {
+                    this.bulletList.map(function (item) {
+                        mergeAllMatrix(item);
+                    });
+                }
+
+                function mergeAllMatrix(matrix) {
+                    const x = matrix.x;
+                    const y = matrix.y;
+                    const data = matrix.data;
+                    var child = {
+                        row: y,
+                        col: x,
+                        arr: data
+                    }
+                    tempMatrix = mergeMatrix(child, tempMatrix);
+                }
+
+                return tempMatrix;
+            },
+            // 重绘所有的已经确定的方块
+            draw: function () {
+                const ctx = this.ctx;
+                const canvas = this.canvas;
+                const latticeSize = this.latticeSize;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                var tempMatrix = this.mergeMatrix(this.matrix);
+
+                // 绘制已经确定的格子
+                for (var y = 0; y < tempMatrix.length; y++) {
+                    var row = tempMatrix[y];
+                    for (var x = 0; x < row.length; x++) {
+                        var col = row[x];
+                        if (col === 0) {
+                            ctx.fillStyle = '#eee';
+                        } else {
+                            ctx.fillStyle = '#2196f3';
+                        }
+                        ctx.fillRect(
+                            latticeSize * x + 1,
+                            y * latticeSize + 1,
+                            latticeSize - 2, latticeSize - 2,
+                        )
+                    }
+                }
+            },
+            start: function () {
+                this.createEnemy();
+                this.draw();
+                this.timer = setInterval(this.runtime.bind(this), 50);
+            },
+            runtime: function () {
+                for (var i = 0; i < this.bulletList.length; i++) {
+                    var tempMatrix = this.mergeMatrix(this.matrix);
+                    var currentBullet = this.bulletList[i];
+                    if (currentBullet.Collision(tempMatrix)) {
+                        var x = currentBullet.x;
+                        var y = currentBullet.y;
+                        var dir = currentBullet.dir;
+                        var tempEnemyList = deepCopyMatrix(this.enemyList);
+                        tempEnemyList.push(this.player);
+                        tempEnemyList.push.apply(tempEnemyList, this.bulletList);
+                        for (var j = 0; j < tempEnemyList.length; j++) {
+                            var obj = tempEnemyList[j];
+                            if (obj instanceof Tank) {
+                                var tank = obj;
+                                if (currentBullet.owner === tank) {
+                                    continue;
+                                }
+                                if (([0, 2].indexOf(dir) > -1 && x >= tank.x && x <= tank.x + 2 && y >= tank.y - 1 && y <= tank.y + 3) || ([1, 3].indexOf(dir) > -1 && y >= tank.y && y <= tank.y + 2 && x >= tank.x - 1 && x <= tank.x + 3)) {
+                                    if (tank === this.player) {
+                                        // game over
+                                        this.player.onDead();
+                                        this.gameOver();
+                                    } else {
+                                        if (currentBullet.owner === this.player) {
+                                            this.enemyList.splice(this.enemyList.indexOf(tank), 1);
+                                            this.score += 100;
+                                            var level = Math.floor(this.score / 500) + 1;
+                                            this.step -= (level - this.level) * 10;
+                                            this.level = level;
+                                            $('#score').innerText = this.score;
+                                            $('#level').innerText = this.level;
+                                        }
+                                    }
+                                    break;
+                                }
+                            } else if (obj instanceof Bullet) {
+                                var bullet = obj;
+                                if (([0, 2].indexOf(dir) > -1 && x === bullet.x && y >= bullet.y - 1 && y <= bullet.y + 1) || ([1, 3].indexOf(dir) > -1 && y === bullet.y && x >= bullet.x - 1 && x <= bullet.x + 1)) {
+                                    var index = this.bulletList.indexOf(bullet);
+                                    if (index < i) {
+                                        i--;
+                                    }
+                                    this.bulletList.splice(index, 1);
+                                    break;
+                                }
+                            }
+                        }
+
+                        this.bulletList.splice(i, 1);
+                        i--;
+                    } else {
+                        currentBullet.move();
+                    }
+                }
+
+                for (var i = 0; i < this.enemyList.length; i++) {
+                    this.enemyAutoRun(this.enemyList[i]);
+                }
+                this.draw();
+                this.step--;
+                if (this.step <= 0) {
+                    this.step = 0;
+                    this.createEnemy();
+                }
+            },
+            createEnemy: function () {
+                var enemyPos;
+                var collision = false;
+                var tempMatrix = this.mergeMatrix(this.matrix);
+                pos:
+                    for (var i = 0; i < this.enemyPos.length; i++) {
+                        collision = false;
+                        enemyPos = this.enemyPos[i];
+                        matrix:
+                            for (var row = enemyPos.y; row < enemyPos.y + 3; row++) {
+                                for (var col = enemyPos.x; col < enemyPos.x + 3; col++) {
+                                    if (tempMatrix[row][col] === 1) {
+                                        collision = true;
+                                        break matrix;
+                                    }
+                                }
+                            }
+                        if (!collision) {
+                            var enemy = new Tank();
+                            enemy.dir = enemyPos.dir;
+                            enemy.x = enemyPos.x;
+                            enemy.y = enemyPos.y;
+                            enemy.rotate();
+                            this.enemyList.push(enemy);
+                            this.step = 60 - this.level * 10;
+                            break pos;
+                        }
+                    }
+            },
+            enemyAutoRun: function (enemy) {
+                enemy.frame++;
+                if (enemy.frame % 20 === 0) {
+                    var action = ~~(Math.random() * 4);
+                    switch (action) {
+                        case 0:
+                            break;
+                        case 1:
+                            var dir = ~~(Math.random() * 4);
+                            enemy.dir = dir;
+                            enemy.rotate();
+                            break;
+                        case 2:
+                            var tempMatrix = this.mergeMatrix(this.matrix);
+                            if ([0, 3].indexOf(enemy.dir) > -1) {
+                                enemy.move(-1, tempMatrix);
+                            } else if ([1, 2].indexOf(enemy.dir) > -1) {
+                                enemy.move(1, tempMatrix);
+                            }
+                            break;
+                        case 3:
+                            this.bulletList.push(new Bullet(enemy));
+                            break;
+                    }
+                    enemy.frame = 0;
+                }
+            },
+            gameOver: function () {
+                var self = this;
+                self.isOver = true;
+                setTimeout(function () {
+                    clearInterval(self.timer);
+                    $('#state').innerHTML = '游戏结束<br>得分:<br>' + self.score;
+                    $('#state').style.color = 'red';
+                    $('#game-over').style.display = 'block';
+                }, 500);
+            }
+        }
+
+        var game = new Game();
+        game.start();
+
+        $('#again').addEventListener('click', function () {
+            $('#game-over').style.display = 'none';
+            game.init();
+            game.start();
+        });
+
+        win.Game = Game;
+    })(window, document);
+</script>
+
+</html>
