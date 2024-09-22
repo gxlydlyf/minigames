@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "fs-extra": "^11.2.0",
+    "html-minifier": "^4.0.0"
+  }
+}

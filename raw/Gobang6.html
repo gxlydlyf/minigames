@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>摸鱼小游戏 | 双人五子棋</title>
+    <style>
+        html,body{
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #e6e7ec;
+        }
+
+        body{
+            background-color: #4a4959;
+        }
+        #box{
+            position: relative;
+            margin: 50px auto;
+            width: 450px;
+            height: 510px;
+            background: #e6e7ec;
+        }
+
+        #centent{
+            position: absolute;
+            width: 430px;
+            height: 430px;
+            border: 1px solid #9E9E9E;
+            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: 0px 0px 5px 0px #9e9e9ed9;
+            left: 10px;
+            top: 20px;
+        }
+
+        #canvas{
+            display: block;
+            position: absolute;
+            background: #F7E6B7;
+            left: -10px;
+            top: -10px;
+        }
+
+        #button,#anew,#state,#winner{
+            position: absolute;
+            display: block;
+            width: 40px;
+            height: 40px;
+            border-radius: 30px;
+            outline: none;
+            font-size: 10px;
+            box-sizing: border-box;
+            color: #00BCD4;
+            background: #fff;
+            border: none;
+            box-shadow: 1px 1px 3px 1px #9e9e9e5e;
+            top: 460px;
+            left: 270px;
+            user-select: none;
+        }
+        #anew{left: 220px;}
+        #state{left: 321px; width: 120px;}
+        #state .state-chess,#winner .state-chess{
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            top: 5px;
+            left: 5px;
+        }
+
+        #state .chessName, #winner .chessName{
+            position: absolute;
+            width: 60px;
+            height: 30px;
+            top: 5px;
+            left: 40px;
+            text-align: center;
+            line-height: 30px;
+            font-size: 15px;
+        }
+
+
+
+        #button:hover{
+            transition: 1s all;
+            background: #01BCFF;
+            color: #fff;
+        }
+        #anew:hover{
+            transition: 1s all;
+            background: #1bb556;
+            color: #fff;
+        }
+
+        #button:active,#anew:active{
+            transition-property: all;
+            transition-duration: 1s;
+            transition-timing-function: ease;
+            transition-delay: 0s;
+            transform: scale(.8);
+        }
+
+
+        .Bchess{
+            position: absolute;
+            width: 27px;
+            height: 27px;
+            border-radius: 30px;
+            background: radial-gradient(#9E9E9E -100%, #000000 100%);
+            box-shadow: 1px 1px 2px 0px #0000006e;
+            font-size: 10px;
+            line-height: 27px;
+            text-align: center;
+            color: #fff;
+        }
+
+        .Wchess{
+            position: absolute;
+            width: 27px;
+            height: 27px;
+            border-radius: 30px;
+            background: radial-gradient( #e4e4e4 10%,#b7aaaa);
+            box-shadow: 1px 1px 2px 0px #0000006e;
+            font-size: 10px;
+            line-height: 27px;
+            text-align: center;
+            color: #000000;
+        }
+
+        #winner{
+            width: 120px;
+            left: 12px;
+            display: none;
+        }
+        .page-footer {
+            position: fixed;
+            right: 35px;
+            bottom: 20px;
+            display: flex;
+            align-items: center;
+            padding: 5px;
+            color: black;
+            background: rgba(255, 255, 255, 0.65);
+        }
+
+        .page-footer a {
+            display: flex;
+            margin-left: 4px;
+        }
+        .touxiang{
+            bottom: 0px;
+            width:30px;
+            height:30px;
+        }
+
+    </style>
+
+</head>
+<body>
+
+<div id="box">
+    <div id="centent">
+        <canvas id="canvas" width="450" height="450"></canvas>
+    </div>
+    <button id="button">撤回</button>
+    <button id="anew">重开</button>
+    <div id="state">
+        <div class="state-chess Bchess"></div>
+        <div class="chessName">黑棋走</div>
+    </div>
+    <div id="winner">
+        <div class="state-chess Bchess"></div>
+        <div class="chessName"></div>
+    </div>
+</div>
+
+<script>
+    var game = {
+        centent: document.getElementById("centent"),
+        canvas: document.getElementById("canvas"),
+        ctx: canvas.getContext("2d"),
+        regret_chess: document.getElementById("button"),
+        anew: document.getElementById("anew"),
+        state: document.getElementById("state"),
+        sChesee: document.getElementsByClassName("state-chess")[0],
+        cName: document.getElementsByClassName("chessName")[0],
+        winner: document.getElementById("winner"),
+        winChesee: this.winner.getElementsByClassName("state-chess")[0],
+        winName: this.winner.getElementsByClassName("chessName")[0],
+        e: 0,
+        chess_Board: [],
+        chess_Name: ["黑棋","白棋"],
+        h: [],
+        um: 0,
+        lianz: [],
+        winXY: [[1,0],[0,1],[1,1],[1,-1]],
+        chessOff: true,
+        computerChess: function(){
+
+        },
+        drawLine: function(){
+            //console.log(game.c === this.c)
+            for(var i = 1; i <= 14; i++){
+                game.ctx.moveTo(i * 30 + .5, 420)
+                game.ctx.lineTo(i * 30 + .5,30)
+                game.ctx.moveTo(30,i * 30 + .5)
+                game.ctx.lineTo(420,i * 30 + .5)
+                game.ctx.strokeStyle = "#C0A27B";
+                game.ctx.stroke()
+            }
+            for(var i = 0; i <= 13; i++){
+                game.chess_Board[i] = [];
+                game.lianz[i] = [];
+                for(var j = 0; j <= 13; j++){
+                    game.chess_Board[i][j] = 0;
+                    game.lianz[i][j] = 0;
+                }
+            }
+        },
+        canvasClick: function(e){
+            var dx = parseInt(Math.floor(e.offsetX + 15) / 30);
+            var dy = parseInt(Math.floor(e.offsetY + 15) / 30);
+            var WBobj = {
+                ox: (dx * 30) - 25,
+                oy: (dy * 30) - 25,
+                mz: game.chess_Name[game.e % 2],
+                dm: document.createElement("div"),
+                class: game.e % 2 == 1 ? "Wchess" : "Bchess",
+                list: game.um++,
+            }
+            if(dx < 1 || dx > 14 | dy < 1 || dy > 14)return;
+            if( game.chess_Board[dx - 1][dy - 1] == 0){
+                game.h.push(WBobj)
+                WBobj.dm.classList.add( WBobj.class);
+                WBobj.dm.style.left = WBobj.ox + "px";
+                WBobj.dm.style.top = WBobj.oy + "px";
+                game.chess_Board[dx - 1][dy - 1] = game.chess_Name[game.e % 2];
+                game.lianz[dx - 1][dy - 1] = WBobj.dm;
+                game.win(dx - 1,dy - 1,game.chess_Name[game.e % 2],game.winXY[0],game.e % 2)
+                game.win(dx - 1,dy - 1,game.chess_Name[game.e % 2],game.winXY[1],game.e % 2)
+                game.win(dx - 1,dy - 1,game.chess_Name[game.e % 2],game.winXY[2],game.e % 2)
+                game.win(dx - 1,dy - 1,game.chess_Name[game.e % 2],game.winXY[3],game.e % 2)
+                game.cName.innerText = game.e % 2 == 0 ? game.chess_Name[1] + "走" : game.chess_Name[0] + "走";
+                game.sChesee.className = game.e % 2 == 1 ? "state-chess Bchess" : "state-chess Wchess";
+                game.e++;
+                game.centent.appendChild(WBobj.dm)
+            }
+
+        },
+
+        regret: function(e){
+            if(game.chessOff){
+                if(game.h.length > 0){
+                    let obj =  game.h.pop();
+                    let rmRm = obj.dm;
+                    rmRm.remove()
+                    game.cName.innerText = game.e % 2 == 0 ? game.chess_Name[1] + "走" : game.chess_Name[0] + "走";
+                    game.sChesee.className = game.e % 2 == 1 ? "state-chess Bchess" : "state-chess Wchess";
+                    game.e -=1;
+                    game.um-=1;
+                    game.chess_Board[parseInt(obj.ox/30)][parseInt(obj.oy/30)] = 0;
+
+                }else{
+                    return;
+                }
+            }else{
+
+                return;
+            }
+
+        },
+
+        anewClick: function(e){
+            game.h.forEach(function(v,i){
+                v.dm.remove()
+                game.h = []
+                game.um = 0;
+                game.chessOff = true;
+            })
+            for(var i = 0; i <= 13; i++){
+                game.chess_Board[i] = [];
+                game.lianz[i] = [];
+                for(var j = 0; j <= 13; j++){
+                    game.chess_Board[i][j] = 0;
+                    game.lianz[i][j] = 0;
+                }
+            }
+            game.winName.innerText = ' ';
+            game.winner.style.display = "none";
+            game.regret_chess.style.background = '';
+            game.regret_chess.style.color = '';
+        },
+
+        win: function(x,y,c,m,li){
+            let ms = 1;
+            var continuity = [];
+            for(let i = 1; i < 5; i++){
+                if(game.chess_Board[x + i * m[0]]){
+                    if(game.chess_Board[x + i * m[0]][y + i * m[1]] === c){
+                        continuity.push([x + i * m[0],y + i * m[1]])
+                        ms++;
+                    }else{
+                        break;
+                    }
+                }
+            }
+
+            for(let i = 1; i < 5; i++){
+                if( game.chess_Board[x - i * m[0]]){
+                    if( game.chess_Board[x - i * m[0]][y - i * m[1]] === c){
+                        continuity.push([x - i * m[0],y - i * m[1]])
+                        ms++;
+                    }else{
+                        break;
+                    }
+                }
+            }
+
+            if(ms >= 5){
+                //alert(c + "赢了")
+                setTimeout(function(){
+                    console.log(c + "赢了")
+                },600)
+                continuity.push([x,y]);
+                game.chessOff = false;
+                game.regret_chess.style.background = '#d0cdcd';
+                game.regret_chess.style.color = '#505050';
+                let s = 5;
+                let ls = [270,300,330,360,390];
+                let ls1 = [390,420,450,480,510];
+                continuity.forEach(function(value,index){
+                    let time = setInterval(function(){
+                        game.lianz[value[0]][value[1]].style.transform = 'scale(0.9)';
+                        game.lianz[value[0]][value[1]].style.boxShadow = "0px 0px 2px 2px #ffd507";
+                        s--;
+                        s <= 0 ? clearInterval(time) : clearInterval(time);
+                    },ls[index])
+                    let time2 = setInterval(function(){
+                        game.lianz[value[0]][value[1]].style.transform = 'scale(1)';
+                        game.lianz[value[0]][value[1]].style.boxShadow = "0px 0px 2px 2px #ffd507";
+                        s++
+                        s >= 5 ? clearInterval(time2) : clearInterval(time2);
+                    },ls1[index])
+                })
+
+                for(var i = 0; i < game.chess_Board.length; i++){
+                    for(var j = 0; j < game.chess_Board.length; j++){
+                        if(game.chess_Board[i][j] === 0){
+                            game.chess_Board[i][j] = "null";
+                        }
+                    }
+                }
+
+                game.h.forEach(function(value,index){
+                    value.dm.innerText = value.list;
+                })
+
+                li == 1 ? game.winChesee.className = "state-chess Wchess" : game.winChesee.className = "state-chess Bchess";
+                game.winName.innerText = c + "赢了";
+                this.winner.style.display = "block";
+            }
+        },
+
+    };
+
+
+
+</script>
+<script>
+    game.drawLine()
+    game.canvas.addEventListener("mousedown",game.canvasClick)
+    game.regret_chess.addEventListener("mousedown",game.regret)
+    game.anew.addEventListener("mousedown",game.anewClick)
+
+</script>
+</body>
+</html>
+

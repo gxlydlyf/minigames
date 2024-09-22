@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>扫雷-极简版</title>
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+      }
+
+      .container {
+        margin: 150px auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .container .row1,
+      .container .row2 {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        margin: 10px;
+      }
+      .container .row1 button:last-child {
+        margin: 0;
+      }
+
+      .container .row2 .bombinfo {
+        width: 110px;
+        height: 40px;
+        background-color: #02a4ad;
+        color: #fff;
+        border-radius: 5px;
+        line-height: 40px;
+        text-align: center;
+        font-size: 14px;
+      }
+      button {
+        width: 80px;
+        height: 40px;
+        background-color: #02a4ad;
+        border: none;
+        border-radius: 5px;
+        outline: none;
+        cursor: pointer;
+        color: #fff;
+        margin-right: 5px;
+      }
+
+      button.refresh {
+        margin-right: 20px;
+      }
+
+      button.active {
+        background-color: #00abff;
+      }
+
+      .bombNum {
+        color: lightgreen;
+      }
+
+      table {
+        background-color: #929196;
+      }
+
+      /* 每个小td都是一个cube方块 */
+      .cube {
+        width: 25px;
+        height: 25px;
+        line-height: 25px;
+        border: 2px solid;
+        border-color: #fff #a1a1a1 #a1a1a1 #fff;
+        text-align: center;
+        font-size: 19px;
+        cursor: pointer;
+        background: #ccc;
+      }
+
+      /* 数字的颜色 */
+      .zero {
+        /* 如果是把border置为none的话 table可能会跟着td的缩小而缩小 这种情况仅会在 一整行或一整列td都被附加了 zero类名的时候发生 */
+        border-color: #ccc;
+        cursor: default;
+      }
+
+      .one {
+        color: #00abff;
+      }
+
+      .two {
+        color: #555fff;
+      }
+
+      .three {
+        color: coral;
+      }
+
+      .four {
+        color: #ff3eff;
+      }
+
+      /* 字体图标样式 */
+      .icon {
+        width: 23px;
+        height: 23px;
+        font-size: 22px;
+        vertical-align: -0.15em;
+        fill: currentColor;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <!-- 按钮和提示信息区域 -->
+      <div class="infobox">
+        <div class="row1">
+          <button class="easy active">初级</button>
+          <button class="normal">中级</button>
+          <button class="hard">高级</button>
+        </div>
+        <div class="row2">
+          <button class="refresh">重新开始</button>
+          <div class="bombinfo">
+            <span>剩余雷数：<span class="bombNum"></span></span>
+          </div>
+        </div>
+      </div>
+      <!-- 游戏区域 -->
+      <div class="gamebox">
+        <!-- 因为小方块的数量不一，所以table比ul要方便，ul还需要手动调整width属性，而table的大小可以根据td的改变而自动改变-->
+        <table>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 引入symbol格式的字体图标 优点是可以渲染彩色图标 缺点是性能差兼容性差 -->
+    <!-- 核心代码如下： -->
+    <script>
+      // 扫雷 采用对象思想 为每一个小方块都是一个对象
+      /* 需求: 1.鼠标点击小方块 小方块会去找周围的方块 判断其是否含有炸弹 有几个炸弹就显示几 没有炸弹就一直循环往下找
+                       2.鼠标右键点击小方块，可以插一个小旗
+                       3.小旗插满之后判断是否把炸弹都排除掉了 成功则游戏胜利
+                       4.随机生成炸弹 点到炸弹游戏失败 */
+
+      const table = document.querySelector("table");
+      // 小旗的字体图标
+      const flag_html = `<svg class="icon" aria-hidden="true">
+                                    <use xlink:href="#icon-qizi"></use>
+                                 </svg>`;
+      // 炸弹的字体图标 有 icon-zhadan icon-Bomb 和 icon-Bomb1 可选
+      const bomb_html = `<svg class="icon" aria-hidden="true">
+                                    <use xlink:href="#icon-Bomb"></use>
+                                 </svg>`;
+
+      let rowNumber; // 记录n的值 这很重要！
+      let tds = []; //存放所有的td小方块 便于以后对td进行dom操作
+      let cubes = []; //存放每个小方块对应的对象 cubes 与 tds 是一一对应的
+      let flag_arr = []; //存放旗子的下标位置 用来判断旗子的位置是否全部正确
+
+      // 1.使用双层循环 创建一个n行n列的表格
+      function initTable(n = 10) {
+        // (1)清空tbody 和 全局数组之后重新渲染
+        table.querySelector("tbody").innerHTML = "";
+        cubes = []; //cubes是push对象的，所以它一直会保持第一局的td，每一次初始化都应该清空它
+        flag_arr = []; // 不清空会导致第一局游戏插的旗子一直保持在后续的游戏中
+        // (2)渲染tr td标签
+        for (let i = 0; i < n; i++) {
+          let tr = document.createElement("tr");
+          for (let j = 0; j < n; j++) {
+            let td = document.createElement("td");
+            td.classList.add("cube");
+            tr.append(td);
+            // (3)为每一个小方块创建一个对象 并存放到 cubes 数组中 这里要注意：所有的小方块和cubes的对象是 依次、按序 不多不少的对应着的
+            cubes.push({
+              row: i, // 行的下标 注意：下标是从0开始的！ row的值直接对应着它们的下标编号 但是并不对应小方块实际的坐标
+              col: j, // 列的下标  比如：下标为 32 的小方块 row是3 col是2 ，但是实际上 下标为32的小方块是在第4行第3列
+              value: "", // 周围有几个炸弹 如果这个小方块是炸弹，那么它的value值会是 'bomb'
+              check: false, //是否已经作为中心点被检测过 如果被检测过了就不要再检测了 否则会陷入无限死循环 一直检测一个小方块
+            });
+          }
+          table.querySelector("tbody").appendChild(tr);
+        }
+        // (4)记录一下到底是几行几列 在检测周围炸弹时要用它来判断下标是否超出边界了
+        rowNumber = n;
+        // (5)获取所有td小方块
+        tds = table.querySelectorAll("td");
+        // (6)重新绑定table的鼠标事件 因为点击任何按钮都会进行这个初始化操作，所以在这里为table绑定一个重复事件 避免玩家gameover之后table永久解绑鼠标事件
+        // 因为用的是具名函数绑定的完全相同的事件，所以两个事件会发生覆盖 不用担心性能问题
+        table.addEventListener("mousedown", table_mouse);
+      }
+
+      initTable();
+
+      // 此时各个小li的下标如下(初级难度)：
+      // 00 01 02 03 04 05 06 07 08 09
+      // 10 11 12 13 14 15 16 17 18 19
+      // 20 21 22 23 24 25 26 27 28 29
+      // 30 31 32 33 34 35 36 37 38 39
+
+      let bomb_arr = []; //存放着每个炸弹对应的下标 在游戏失败时遍历这个数组来让全部炸弹都显示出来
+      // 2.随机生成n个炸弹 并为对应的小方块对象赋值
+      function random_bomb(n = 10) {
+        // (1)生成一个按序排列的数组 数组长度和小方块的个数保持一致
+        let arr = [];
+        for (let i = 0; i < cubes.length; i++) {
+          arr[i] = i;
+        }
+        // (2)打乱这个数组的排序 这种乱序方法更偏向于炸弹在后
+        arr.sort(() => {
+          return 0.5 - Math.random();
+        });
+        // (3)截取前n-1个下标的值 如此3步便可以获得n个不重复的数值 它们是炸弹的下标
+        bomb_arr = arr.slice(0, n); // 用重新赋值而不是push的方法来避免第二局游戏中出现第一局的炸弹
+        // (4)根据炸弹下标改变对应小li对象的value值
+        for (const i in bomb_arr) {
+          cubes[bomb_arr[i]].value = "bomb";
+        }
+        // (5)初始化剩余雷数
+        let bombNum = document.querySelector(".bombNum");
+        bombNum.innerHTML = n;
+
+        // (6)测试用：把所有雷都显示出来 使用这些代码会导致玩家在点击时点击的不是td而是svg标签！
+        // 而且使用如下代码会使得玩家无法赢得胜利
+        // for (const i in bomb_arr) {
+        //   tds[bomb_arr[i]].innerHTML = bomb_html;
+        // }
+      }
+
+      random_bomb();
+
+      // 3.把右键菜单的显示事件给阻止掉
+      table.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+      });
+
+      // 4.通过事件委托为table绑定鼠标事件 这里必须要用mousedown事件 以分辨玩家点击的是鼠标左键还是右键
+      // 游戏结束时要解绑事件，所以table事件的回调函数是具名函数
+      table.addEventListener("mousedown", table_mouse);
+      // 扫雷游戏核心中的核心：
+      function table_mouse(e) {
+        // 点中table之后直接结束函数
+        if (e.target.tagName == "TABLE") {
+          return;
+        }
+        // 然后玩家就只能点中TD或者是svg了
+        // 1.先获得点击的TD的dom下标 这很重要！
+        // 因为所有的td与cubes数组里面的对象是一一对应的 所以我可以通过这个下标操作cubes数组，还能对对应的td方块进行dom操作
+        const td_index = get_my_index(e.target);
+        // (1)如果点击的是鼠标右键
+        if (e.button == 2) {
+          let bombNum = document.querySelector(".bombNum");
+          // I.右键点击的是小方块 且 该方块没有值 就是插旗子 （第2个条件是为了防止玩家点中有svg标签的td的td部分）
+          if (e.target.tagName == "TD" && !e.target.innerHTML) {
+            // 插旗子 每插一个旗子都记录一下旗子所在td的下标
+            e.target.innerHTML = flag_html;
+            flag_arr.push(td_index);
+            +bombNum.innerText--;
+            cubes[td_index].check = true; //插旗子的小方块不会被当做中心点进行检测 这是预防旗子所在方格为0时 旗子被消除掉
+          }
+          // II.如果点中是的svg旗子的话 就把旗子拔掉
+          else if (e.target.tagName == "svg") {
+            e.target.parentNode.innerHTML = "";
+            +bombNum.innerText++;
+          }
+          // III.如果旗子插完了 就需要判断是否全部正确
+          if (bombNum.innerText == 0) {
+            for (const i in flag_arr) {
+              if (cubes[flag_arr[i]].value !== "bomb") {
+                // 只要发现有一个旗子不在炸弹处，游戏就算失败
+                return gameover();
+              }
+            }
+            // 游戏失败的情况很多 但是游戏胜利的情况只有1个 那就是插的旗子全部命中了炸弹
+            alert("全部命中！您就是排雷大师！");
+          }
+        }
+        // (2)鼠标其他按键 均视为点击事件
+        else {
+          // I.点击之后先查看自己是否是炸弹
+          if (cubes[td_index].value == "bomb") {
+            // 是炸弹则执行游戏失败的函数
+            gameover(e.target);
+          } else {
+            // II.如果点击的不是炸弹则执行下面的函数 把它和周围小方块的数值渲染出来
+            click_td(td_index);
+          }
+        }
+      }
+      // 点击小方块触发的函数：
+      function click_td(td_index) {
+        // (1)先获取自己的value值 这里只操作cubes数组
+        test_around_bomb(td_index);
+        // (2)数组操作完毕，根据value值进行dom操作 这里只操作td本身
+        td_dom_operate(td_index);
+        // (3)如果自己的值为0就把自己周围一圈的小方块分别作为中心点进行检测 只有当中心点的小方块的值不是0时才停止
+        if (!cubes[td_index].value) {
+          // I.先获取自己周围td的下标
+          let around_arr = get_around_index(td_index);
+          // II.再把中心点周围的9个小方块循环当做中心点进行炸弹检测，如果检测结果为0那么就继续检测 直到有数字出现为止
+          around_arr.forEach((value) => {
+            // 只有没被检测过的小方块才会进行检测 否则会陷入死循环
+            if (!cubes[value].check) {
+              // 如果之前作为中心点的小方块的值是0，那么就该依次对它四周的小方块进行模拟点击操作，不断深度搜索直到出现数字为止
+              click_td(value);
+            }
+          });
+        }
+      }
+
+      // 获得指定td周围td的下标
+      function get_around_index(index) {
+        let arr = []; //存放周围td的下标
+        let r = cubes[index].row; // row 0 ~ rowNumber-1 在生成row的时候就已经是从0开始的了，所以下标不用再进行-1操作了
+        let c = cubes[index].col; // col:0 ~ rowNumber-1
+        // 双层循环 获取周围9宫格的下标 包括自己本身的下标
+        for (let i = r - 1; i <= r + 1; i++) {
+          for (let j = c - 1; j <= c + 1; j++) {
+            // 排除掉超出 最左边 最上边 最右边 和 最下边 的下标(自己的下标排除不排除都无所谓)  一定要是>=才行 因为下标是0-9 但是rowNumber可以是10
+            if (i < 0 || j < 0 || i >= rowNumber || j >= rowNumber) {
+              continue;
+            } else {
+              // 注意：这里 i 是 行数，它需要乘以 一行的列数 再加上j 才是正确的下标
+              arr.push(i * rowNumber + j);
+            }
+          }
+        }
+        return arr;
+      }
+
+      //检测周围炸弹的数量 来改变对应cubes对象的value值
+      function test_around_bomb(index) {
+        let around_arr = get_around_index(index);
+        let sum = 0;
+        around_arr.forEach((item) => {
+          // 遍历周围元素的value值，统计总和
+          if (cubes[item].value == "bomb") {
+            sum++;
+          }
+        });
+        // 这个总和就是中心点方块周围的炸弹数 把它记录在cube的value中 并修改check值表示这个小方块已经作为中心点检测过了
+        cubes[index].value = sum;
+        cubes[index].check = true;
+      }
+      // 对指定下标的td小方块进行dom操作
+      function td_dom_operate(index) {
+        // (1)显示自己的value值 如果是0的话就不用显示了
+        let my_td = tds[index];
+        const cube_val = cubes[index].value;
+        my_td.innerHTML = cube_val ? cube_val : "";
+        // (2)数字的颜色由css类名控制，类名存放在了下面的数组中，大于4的数字的颜色和4的颜色是一样的
+        const color_class_arr = ["zero", "one", "two", "three", "four"];
+        let t = cube_val > 4 ? 4 : cube_val;
+        my_td.classList.add(color_class_arr[t]);
+      }
+
+      // 获得点击的小方块的下标
+      function get_my_index(domEle) {
+        for (const index in tds) {
+          if (tds[index] === domEle) {
+            return index;
+          }
+        }
+      }
+
+      // 游戏失败的函数
+      function gameover(domEle) {
+        // (1)解绑点击事件
+        table.removeEventListener("mousedown", table_mouse);
+        // (2)显示所有炸弹 除了那些被旗子标记过的
+        bomb_arr.map((item) => {
+          if (tds[item].innerHTML !== flag_html) {
+            tds[item].innerHTML = bomb_html;
+          }
+        });
+        // (3)如果是点击炸弹失败的话 被点击的炸弹有一个突出显示
+        if (domEle) {
+          domEle.style.backgroundColor = "lightcoral";
+          // (4)提示信息
+          alert("嘭，是(╯‵□′)╯炸弹！•••*～●");
+        } else {
+          alert("很可惜，旗子用完了，你没能完成任务！");
+        }
+      }
+    </script>
+    <script>
+      // 非核心代码，包括为按钮绑定样式切换 和 难度切换事件 不同的script标签内的变量共用一个作用域 但是不能
+      // 把变量放到局部作用域内，比如不能放到 window.onload的回调函数中
+      let btns = document.querySelectorAll(".infobox .row1 button");
+      let difficulty = "easy"; //保持用户选择的难度 以便于重新开始时仍然保持这个难度
+      document
+        .querySelector(".infobox .row1")
+        .addEventListener("click", (e) => {
+          if (e.target.tagName == "BUTTON") {
+            // 切换样式
+            let active_btn = document.querySelector("button.active");
+            if (active_btn) {
+              active_btn.classList.remove("active");
+            }
+            // 点击初级中级高级按钮 重新渲染表格 这些数字用来控制 表格的行数 和炸弹的个数
+            switch (e.target) {
+              case btns[0]:
+                difficulty = "easy";
+                initTable(10);
+                random_bomb(10);
+                break;
+              case btns[1]:
+                difficulty = "normal";
+                initTable(15);
+                random_bomb(20);
+                break;
+              case btns[2]:
+                difficulty = "hard";
+                // 高难度不要设置太多小方块而雷太少 否则代码执行速度会很慢
+                initTable(20);
+                random_bomb(40);
+                break;
+            }
+            e.target.classList.add("active");
+          }
+        });
+      // 重新开始也是重新渲染表格  游戏的难度与用户选择的难度相同
+      document.querySelector(".row2 .refresh").addEventListener("click", () => {
+        switch (difficulty) {
+          case "easy":
+            initTable(10);
+            random_bomb(10);
+            break;
+          case "normal":
+            initTable(15);
+            random_bomb(20);
+            break;
+          case "hard":
+            initTable(20);
+            random_bomb(40);
+            break;
+        }
+      });
+    </script>
+  </body>
+</html>
