@@ -1,8 +1,14 @@
-//node compress.js --only-compress-changed
+//压缩更改的文件：node compress.js --only-compress-changed
+//压缩指定的文件：node compress.js html1.html html2.html html3.html
+//          或：node compress.js html1 html2 html3
+//压缩全部的文件：node compress.js
 const fs = require('fs-extra');
 const path = require('path');
 const {minify} = require('html-minifier');
 const crypto = require('crypto');
+const {JSDOM} = require("jsdom");
+const babel = require('@babel/core');
+const Terser = require("terser");
 
 const rawDir = path.join(__dirname, 'raw');
 const minDir = path.join(__dirname, 'min');
@@ -22,8 +28,20 @@ async function compressHtmlFiles() {
         files = await fs.readdir(rawDir);
         let htmlFiles = files.filter(file => file.endsWith('.html'));
 
+        const replaceHtmlExtension = (str) => {
+            if (str.endsWith('.html')) {
+                return str.slice(0, -5);
+            }
+            return str; // 如果字符串不以.html结尾，则返回原字符串
+        }
+
         if (argvFiles.length > 0) {//压缩指定文件
-            htmlFiles = htmlFiles.filter(file => argvFiles.includes(file))
+            htmlFiles = htmlFiles.filter(
+                file => argvFiles.includes(file) ||
+                    argvFiles.includes(
+                        replaceHtmlExtension(file)
+                    )
+            )
             if (argvFiles.includes("--only-compress-changed")) {
                 // 读取哈希文件
                 let rawHashFiles = await fs.readdir(path.join(hashDir, 'raw'));
@@ -77,17 +95,21 @@ async function compressHtmlFiles() {
                     // 读取 min 目录中的所有文件名
                     const minFiles = await fs.readdir(minDir);
 
+                    let deleted = false;
+
                     // 遍历 min 目录中的文件，检查并删除不在 raw 目录中的文件
                     for (const minFile of minFiles) {
                         if (!rawFileNames.includes(minFile)) {
                             await fs.remove(path.join(minDir, minFile));
                             console.log(`删除raw已经删除的文件: ${minFile}`);
+                            deleted = true;
                         }
                     }
-
-                    console.log('删除raw已经删除的文件完成');
+                    if (deleted) {
+                        console.log('删除raw已经删除的文件完成');
+                    }
                 } catch (error) {
-                    console.error('发生错误:', error);
+                    console.error('删除raw已经删除的文件完成发生错误:', error);
                 }
                 htmlFiles = mismatchedFiles;
                 if (mismatchedFiles.length <= 0) {
@@ -114,19 +136,102 @@ async function compressHtmlFiles() {
             await fs.writeFile(path.join(hashDir, 'raw', `${file}.hash`), hash);
             console.log(`保存原始文件哈希: ${file}.hash`);
 
-            // 压缩 HTML 内容
             let minifiedHtml = htmlContent;
+
+
             try {
-                minifiedHtml = minify(htmlContent, {
+                //将index.html转化为es5
+                // 使用 jsdom 解析 HTML
+                const dom = new JSDOM(minifiedHtml);
+                const {document} = dom.window;
+
+                // 查找所有 <script> 标签并转换内容
+                const scripts = document.querySelectorAll('script');
+                const transformedJsPromises = [];
+
+                scripts.forEach(script => {
+                    const jsCode = script.textContent;
+
+                    const transformedPromise = new Promise(async function (resolve, reject) {
+                        let result = jsCode;
+                        // if (file === 'index.html') {
+                        try {
+                            result = (
+                                await babel.transformAsync(jsCode, {
+                                    compact: false,//[BABEL] Note: The code generator has deoptimised the styling of undefined as it exceeds the max of 500KB.
+                                    presets: [
+                                        [
+                                            '@babel/preset-env',
+                                            {
+                                                modules: false
+                                            }
+                                        ]
+                                    ],
+                                    plugins: [
+                                        [
+                                            "@babel/plugin-transform-modules-commonjs",
+                                            {
+                                                strictMode: false
+                                            }
+                                        ],
+                                    ]
+                                })
+                            ).code;
+                        } catch (e) {
+                            console.error('babel js发生错误:', e);
+                        }
+                        // }
+                        try {
+                            result = (
+                                await Terser.minify(result, {
+                                    ecma: 5,
+                                    compress: {
+                                        // warnings: false,
+                                        drop_debugger: true,
+                                        drop_console: true,
+                                        arrows: false,
+                                    },
+                                    ie8: true,
+                                    safari10: true
+                                })
+                            ).code;
+                        } catch (e) {
+                            console.error('minify js发生错误:', e);
+                        }
+                        // 创建新的 <script> 标签
+                        // const newScript = document.createElement('script');
+                        // newScript.textContent = result;
+                        // script.replaceWith(newScript); // 替换旧的 <script> 标签
+                        // 替换内容
+                        script.textContent = result;
+                        resolve();
+                    });
+
+                    transformedJsPromises.push(transformedPromise);
+                });
+                // 等待所有 JS 转换完成
+                await Promise.all(transformedJsPromises);
+
+                // 获取转换后的 HTML 内容
+                minifiedHtml = dom.serialize();
+                // console.log('转换后的 HTML 内容', minifiedHtml)
+            } catch (e) {
+                console.error('babel并压缩js发生错误:', e);
+                // await fs.writeFile(path.join(hashDir, 'raw', `${file}.hash`), "");
+            }
+
+            // 压缩 HTML 内容
+            try {
+                minifiedHtml = minify(minifiedHtml, {
                     removeAttributeQuotes: true,
                     collapseWhitespace: true,
                     minifyCSS: true,
-                    minifyJS: true,
+                    minifyJS: false,
                     removeComments: true,
                     removeCommentsFromCDATA: true,
                 });
             } catch (e) {
-                console.log(`压缩错误: ${file}`);
+                console.error(`压缩html错误: ${file}`);
             }
 
             // 将压缩后的 HTML 写入 min 目录
