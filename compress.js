@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const {JSDOM} = require("jsdom");
 const babel = require('@babel/core');
 const Terser = require("terser");
+const compressFileToDeflate = require("./deflateCompress");
 
 const rawDir = path.join(__dirname, 'raw');
 const minDir = path.join(__dirname, 'min');
@@ -232,6 +233,10 @@ async function compressHtmlFiles() {
                 });
             } catch (e) {
                 console.error(`压缩html错误: ${file}`);
+            }
+
+            if (Buffer.byteLength(minifiedHtml) > 1000000) {//大于1MB进行deflate压缩
+                minifiedHtml = await compressFileToDeflate(minifiedHtml);
             }
 
             // 将压缩后的 HTML 写入 min 目录
