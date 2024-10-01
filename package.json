@@ -4,6 +4,7 @@
     "@babel/core": "^7.25.2",
     "@babel/plugin-transform-modules-commonjs": "^7.24.8",
     "@babel/preset-env": "^7.25.4",
+    "cheerio": "^1.0.0",
     "fs-extra": "^11.2.0",
     "html-minifier": "^4.0.0",
     "jsdom": "^25.0.1",

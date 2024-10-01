@@ -4,7 +4,7 @@
 
 访问游戏（使用这个链接可以防止域名变更）：https://gxlydlyf.github.io/minigames/min/
 # 免责声明
-游戏版权属于原作者，点击右下角黑色图标可看到来源
+游戏版权属于原作者，在网页点击右下角黑色图标可看到来源
 # 提交建议
 https://github.com/gxlydlyf/minigames/issues
 
