@@ -1,100 +1,173 @@
-//快速初步嵌入资源
+// embedResources.js
 const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
+const postcss = require('postcss');
+const postcssUrl = require('postcss-url');
+const getMimeType = require('./mime-types');
+const axios = require('axios');
+
+function getBase64UrlBuffer(str) {
+    // 检查 data URL 的格式
+    const matches = str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+
+    if (!matches) {
+        return false;
+    }
+
+    return Buffer.from(matches[2], 'base64');
+}
+
+// 下载远程资源
+async function fetchUrl(url) {
+    console.log('fetch url', url);
+    const response = await axios.get(url);
+    // const mimeType = response.headers['content-type'] || 'application/octet-stream';
+    // const base64 = Buffer.from(, 'binary').toString('base64');
+    return response.data;
+}
 
 // 获取文件内容
-function getFileContent(filePath) {
-    return fs.readFileSync(filePath, 'utf-8');
+async function getFileContent(filePath) {
+    let base64UrlBuffer = getBase64UrlBuffer(filePath);
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+        return Buffer.from(await fetchUrl(filePath), 'utf-8');
+    } else if (base64UrlBuffer !== false) {
+        return base64UrlBuffer;
+    } else {
+        return fs.readFileSync(filePath, 'utf-8');
+    }
 }
 
-// 转换图片为 Base64
-function imageToBase64(filePath) {
-    const image = fs.readFileSync(filePath);
-    return `data:image/${path.extname(filePath).slice(1)};base64,${image.toString('base64')}`;
+// 转换文件为 Base64
+async function fileToBase64(filePath) {
+    let fileBuffer = await getFileContent(filePath);
+    return `data:${await getMimeType(fileBuffer, filePath)};base64,${fileBuffer.toString('base64')}`;
 }
 
-// 转换音频为 Base64
-function audioToBase64(filePath) {
-    const audio = fs.readFileSync(filePath);
-    const ext = path.extname(filePath).slice(1);
-    const mimeType = ext === 'mp3' ? 'audio/mpeg' : `audio/${ext}`;
-    return `data:${mimeType};base64,${audio.toString('base64')}`;
+// 替换 CSS 中的 url(...) 为 Base64
+async function replaceUrlInCss(cssContent, workDir) {
+    const result = await postcss()
+        .use(postcssUrl({
+            url: async (asset) => {
+                if (typeof asset.url == 'string') {
+                    const assetUrl = asset.url.trim();
+                    if (assetUrl.startsWith('http://') || assetUrl.startsWith('https://')) {
+                        console.log('embed css online url:', assetUrl);
+                        // 处理远程资源
+                        return Buffer.from(await fetchUrl(assetUrl)).toString('base64');
+                    } else if (getBase64UrlBuffer(assetUrl) === false) {
+                        // 处理本地资源
+                        const assetPath = path.join(workDir, assetUrl);
+                        if (fs.existsSync(assetPath)) {
+                            console.log('embed css local path:', assetPath);
+                            return await fileToBase64(assetPath);
+                        } else {
+                            console.warn(`URL not found in CSS: ${assetPath}`);
+                            return assetUrl; // 保持原样
+                        }
+                    }
+                }
+                return asset.url;
+            }
+        }))
+        .process(cssContent, {
+            from: undefined
+        });
+
+    return result.css;
 }
 
 // 嵌入 JS、CSS、图片和音频资源
-function embedResources(workDir, inputFileName, outputFileName) {
+async function embedResources(workDir, inputFileName) {
     const inputFilePath = path.join(workDir, inputFileName);
-    const outputFilePath = path.join(__dirname, outputFileName);
 
     // 读取 HTML 文件
-    const html = getFileContent(inputFilePath);
+    const html = await getFileContent(inputFilePath);
     const $ = cheerio.load(html);
 
-    // 处理 <script> 标签
-    $('script[src]').each((_, script) => {
-        const $script = $(script);
-        const src = $script.attr('src');
-        console.log('script src:', src)
-        const scriptPath = path.join(workDir, src);
+    await Promise.all(
+        [
+            // 处理 <script> 标签
+            ...$('script[src]')
+                .map(async (_, script) => {
+                    const $script = $(script);
+                    const src = $script.attr('src');
+                    const scriptPath = path.join(workDir, src);
+                    const embedBase64Url = $script.attr('embedBase64Url'.toLowerCase());
 
-        if (fs.existsSync(scriptPath)) {
-            const scriptContent = getFileContent(scriptPath);
-            $script.attr('src', null);
-            $script.text(`\n${scriptContent}\n`);
-        } else {
-            console.warn(`Script not found: ${scriptPath}`);
-        }
-    });
+                    if (fs.existsSync(scriptPath)) {
+                        if (embedBase64Url === 'true') {
+                            $script.attr('src', await fileToBase64(scriptPath));
+                            $script.attr('embedBase64Url'.toLowerCase(), null)
+                            console.log('embed base64 script:', scriptPath);
+                        } else {
+                            const scriptContent = await getFileContent(scriptPath);
+                            $script.attr('src', null);
+                            $script.text(`\n${scriptContent}\n`);
+                            console.log('embed script:', scriptPath);
+                        }
+                    } else {
+                        console.warn(`Script not found: ${scriptPath}`);
+                    }
+                }),
+            // 处理 <style> 标签
+            ...$('style')
+                .map(async (_, style) => {
+                    const $style = $(style);
+                    $style.replaceWith(`<style>\n${await replaceUrlInCss($style.text(), workDir)}\n</style>`);
+                }),
+            // 处理 <link> 标签 (CSS)
+            ...$('link[rel="stylesheet"]')
+                .map(async (_, link) => {
+                    const $link = $(link);
+                    const href = $link.attr('href');
+                    const cssPath = path.join(workDir, href);
 
-    // 处理 <link> 标签 (CSS)
-    $('link[rel="stylesheet"]').each((_, link) => {
-        const $link = $(link);
-        const href = $link.attr('href');
-        console.log('link href:', href)
-        const cssPath = path.join(workDir, href);
+                    if (fs.existsSync(cssPath)) {
+                        let cssContent = await getFileContent(cssPath);
+                        cssContent = await replaceUrlInCss(cssContent, workDir);
+                        $link.replaceWith(`<style>\n${cssContent}\n</style>`);
+                        console.log('embed link css:', cssPath);
+                    } else {
+                        console.warn(`CSS not found: ${cssPath}`);
+                    }
+                }),
+            // 处理 <img> 标签
+            ...$('img[src]')
+                .map(async (_, img) => {
+                    const $img = $(img);
+                    const src = $img.attr('src');
+                    const imgPath = path.join(workDir, src);
 
-        if (fs.existsSync(cssPath)) {
-            const cssContent = getFileContent(cssPath);
-            $link.replaceWith(`<style>\n${cssContent}\n</style>`);
-        } else {
-            console.warn(`CSS not found: ${cssPath}`);
-        }
-    });
+                    if (fs.existsSync(imgPath)) {
+                        const base64Image = await fileToBase64(imgPath);
+                        $img.attr('src', base64Image);
+                        console.log('embed img:', imgPath);
+                    } else {
+                        console.warn(`Image not found: ${imgPath}`);
+                    }
+                }),
+            // 处理 <audio> 标签
+            ...$('audio[src]')
+                .map(async (_, audio) => {
+                    const $audio = $(audio);
+                    const src = $audio.attr('src');
+                    const audioPath = path.join(workDir, src);
 
-    // 处理 <img> 标签
-    $('img[src]').each((_, img) => {
-        const $img = $(img);
-        const src = $img.attr('src');
-        console.log('img src:', src)
-        const imgPath = path.join(workDir, src);
-
-        if (fs.existsSync(imgPath)) {
-            const base64Image = imageToBase64(imgPath);
-            $img.attr('src', base64Image);
-        } else {
-            console.warn(`Image not found: ${imgPath}`);
-        }
-    });
-
-    // 处理 <audio> 标签
-    $('audio[src]').each((_, audio) => {
-        const $audio = $(audio);
-        const src = $audio.attr('src');
-        console.log('audio src:', src)
-        const audioPath = path.join(workDir, src);
-
-        if (fs.existsSync(audioPath)) {
-            const base64Audio = audioToBase64(audioPath);
-            $audio.attr('src', base64Audio);
-        } else {
-            console.warn(`Audio not found: ${audioPath}`);
-        }
-    });
+                    if (fs.existsSync(audioPath)) {
+                        const base64Audio = await fileToBase64(audioPath);
+                        $audio.attr('src', base64Audio);
+                        console.log('embed audio:', audioPath);
+                    } else {
+                        console.warn(`Audio not found: ${audioPath}`);
+                    }
+                })
+        ]
+    );
 
     // 输出处理后的 HTML 文件
-    fs.writeFileSync(outputFilePath, $.html());
-    console.log(`Output written to: ${outputFilePath}`);
+    return $.html();
 }
 
 // 获取命令行参数
@@ -105,4 +178,9 @@ if (args.length !== 3) {
 }
 
 const [workDir, inputHtmlFile, outputHtmlFile] = args;
-embedResources(workDir, inputHtmlFile, outputHtmlFile);
+embedResources(workDir, inputHtmlFile)
+    .then(value => {
+        const outputFilePath = path.join(__dirname, outputHtmlFile);
+        fs.writeFileSync(outputFilePath, value);
+        console.log(`Output written to: ${outputFilePath}`);
+    });

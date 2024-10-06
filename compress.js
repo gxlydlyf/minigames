@@ -15,6 +15,8 @@ const rawDir = path.join(__dirname, 'raw');
 const minDir = path.join(__dirname, 'min');
 
 const hashDir = path.join(__dirname, 'Hash');
+const rawHashDir = path.join(hashDir, 'raw');
+const minHashDir = path.join(hashDir, 'min');
 
 // 确保 Hash 目录存在
 fs.ensureDirSync(hashDir);
@@ -95,6 +97,10 @@ async function compressHtmlFiles() {
 
                     // 读取 min 目录中的所有文件名
                     const minFiles = await fs.readdir(minDir);
+                    // 读取 Hash/min 目录中的所有文件名
+                    const minHashFiles = await fs.readdir(minHashDir);
+                    // 读取 Hash/raw 目录中的所有文件名
+                    const rawHashFiles = await fs.readdir(rawHashDir);
 
                     let deleted = false;
 
@@ -102,10 +108,27 @@ async function compressHtmlFiles() {
                     for (const minFile of minFiles) {
                         if (!rawFileNames.includes(minFile)) {
                             await fs.remove(path.join(minDir, minFile));
-                            console.log(`删除raw已经删除的文件: ${minFile}`);
+                            console.log(`删除raw已经删除的文件: min/${minFile}`);
                             deleted = true;
                         }
                     }
+                    // 遍历 Hash/min 目录中的文件
+                    for (const minHashFile of minHashFiles) {
+                        if (!rawFileNames.includes(minHashFile)) {
+                            await fs.remove(path.join(minHashDir, minHashFile));
+                            console.log(`删除raw已经删除的文件: Hash/min/${minHashFile}`);
+                            deleted = true;
+                        }
+                    }
+                    // 遍历 Hash/raw 目录中的文件
+                    for (const rawHashFile of rawHashFiles) {
+                        if (!rawFileNames.includes(rawHashFile)) {
+                            await fs.remove(path.join(rawHashDir, rawHashFile));
+                            console.log(`删除raw已经删除的文件: Hash/raw/${rawHashFile}`);
+                            deleted = true;
+                        }
+                    }
+
                     if (deleted) {
                         console.log('删除raw已经删除的文件完成');
                     }
@@ -134,7 +157,7 @@ async function compressHtmlFiles() {
 
             // 生成文件的哈希值
             const hash = crypto.createHash('sha256').update(htmlContent).digest('hex');
-            await fs.writeFile(path.join(hashDir, 'raw', `${file}.hash`), hash);
+            await fs.writeFile(path.join(rawHashDir, `${file}.hash`), hash);
             console.log(`保存原始文件哈希: ${file}.hash`);
 
             let minifiedHtml = htmlContent;
@@ -175,6 +198,7 @@ async function compressHtmlFiles() {
                                                 strictMode: false
                                             }
                                         ],
+                                        require('./babel-replace-this-expression-plugin')//替换顶层this表达式
                                     ]
                                 })
                             ).code;
@@ -246,7 +270,7 @@ async function compressHtmlFiles() {
 
             // 保存压缩后文件的哈希值
             const minifiedHash = crypto.createHash('sha256').update(minifiedHtml).digest('hex');
-            await fs.writeFile(path.join(hashDir, 'min', `${file}.hash`), minifiedHash);
+            await fs.writeFile(path.join(minHashDir, `${file}.hash`), minifiedHash);
             console.log(`保存压缩文件哈希: ${file}.hash`);
         });
 
