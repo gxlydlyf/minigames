@@ -21,7 +21,7 @@ console.log('files', files);
 
 // 遍历文件列表
 Promise.all(
-    files.map(file => {
+    files.map(async file => {
         const filePath = path.join(directoryPath, file);
 
         // 读取文件内容
