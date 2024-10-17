@@ -366,12 +366,10 @@ async function processFile(file) {
             }
         }
 
+        update();
         if (Buffer.byteLength(minifiedHtml) > 1000000) {//大于1MB进行deflate压缩
             minifiedHtml = await compressFileToDeflate(minifiedHtml);
-            update();
             console.log(`进行deflate压缩: ${file}`);
-        } else {
-            update(2);
         }
 
         update();
