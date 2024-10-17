@@ -6,6 +6,7 @@ const postcss = require('postcss');
 const postcssUrl = require('postcss-url');
 const getMimeType = require('./mime-types');
 const axios = require('axios');
+const toDataUrl = require("./toDataUrl");
 
 function getBase64UrlBuffer(str) {
     // 检查 data URL 的格式
@@ -39,10 +40,16 @@ async function getFileContent(filePath) {
     }
 }
 
+function escapeScriptContent(content) {
+    return content
+        .replace(/<\/script/g, '<\\/script') // 转义 </script
+}
+
 // 转换文件为 Base64
 async function fileToBase64(filePath) {
     let fileBuffer = await getFileContent(filePath);
-    return `data:${await getMimeType(fileBuffer, filePath)};base64,${fileBuffer.toString('base64')}`;
+    // return `data:${await getMimeType(fileBuffer, filePath)};base64,${fileBuffer.toString('base64')}`;
+    return await toDataUrl(fileBuffer, filePath);
 }
 
 // 替换 CSS 中的 url(...) 为 Base64
@@ -88,6 +95,33 @@ async function embedResources(workDir, inputFileName) {
 
     await Promise.all(
         [
+            // 查找包含 embedBase64Path 属性的 <script> 标签
+            ...$('script[embedBase64Path]')
+                .map(async (_, element) => {
+                    const $script = $(element);
+                    let scriptContent = $script.text();
+
+                    // 定义正则表达式，带上全局标志
+                    const regex = /window\.(?=.*[pP][aA][tT][hH])\w+\s*=\s*"([^"]*)";/g;
+
+                    // 存储匹配的值
+                    let matches;
+
+                    while ((matches = regex.exec(scriptContent)) !== null) {
+                        // 提取第二个xxx的值
+                        let originalValue = matches[1];
+                        console.log('embed base64 path:', originalValue);
+
+                        // 更改值
+                        const newValue = await fileToBase64(path.join(workDir, originalValue)); // 新的值
+
+                        // 替换原始字符串
+                        scriptContent = scriptContent.replace(originalValue, newValue);
+                    }
+
+
+                    $script.text(scriptContent);
+                }),
             // 处理 <script> 标签
             ...$('script[src]')
                 .map(async (_, script) => {
@@ -97,14 +131,14 @@ async function embedResources(workDir, inputFileName) {
                     const embedBase64Url = $script.attr('embedBase64Url'.toLowerCase());
 
                     if (fs.existsSync(scriptPath)) {
-                        if (embedBase64Url === 'true') {
+                        if (embedBase64Url !== undefined) {
                             $script.attr('src', await fileToBase64(scriptPath));
                             $script.attr('embedBase64Url'.toLowerCase(), null)
                             console.log('embed base64 script:', scriptPath);
                         } else {
                             const scriptContent = await getFileContent(scriptPath);
                             $script.attr('src', null);
-                            $script.text(`\n${scriptContent}\n`);
+                            $script.text(`\n${escapeScriptContent(scriptContent)}\n`);
                             console.log('embed script:', scriptPath);
                         }
                     } else {
@@ -172,7 +206,7 @@ async function embedResources(workDir, inputFileName) {
 
 // 获取命令行参数
 const args = process.argv.slice(2);
-if (args.length !== 3) {
+if (args.length < 3) {
     console.error('Usage: node embedResources.js <workDir> <inputHtmlFile> <outputHtmlFile>');
     process.exit(1);
 }
