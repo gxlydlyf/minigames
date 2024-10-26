@@ -4,7 +4,7 @@ const path = require('path');
 const getMimeType = require('./mime-types');
 
 function stringToBoolean(str) {
-    if (typeof str === 'string'){
+    if (typeof str === 'string') {
         if (str.toLowerCase() === 'true') {
             return true;
         } else if (str.toLowerCase() === 'false') {
@@ -13,6 +13,7 @@ function stringToBoolean(str) {
     }
     return Boolean(str); // 其他字符串返回布尔值
 }
+
 const type = process.argv[2].toLowerCase(); // 从命令行参数获取文件类型
 const directoryPath = process.argv[3]; // 从命令行参数获取目录路径
 const noToBase64 = stringToBoolean(process.argv[4] || false); // 从命令行参数获取是否不转化为base64
@@ -22,7 +23,7 @@ const outputFile = 'base64_special_types.js';
 // 检查传入的目录路径和文件类型
 if (!type || !directoryPath) {
     console.error('请提供 文件类型 和 目录路径 作为参数.');
-    console.error('使用: node convertAllSpecialTypesToBase64.js <type> <workDir>');
+    console.error('使用: node convertAllSpecialTypesToBase64.js <type> <workDir> <noToBase64> <pathPrefix>');
     process.exit(1);
 }
 
@@ -45,8 +46,8 @@ const getExtensions = (type) => {
 // 递归函数读取目录及其子目录中的文件
 const readFiles = async (dir, extensions) => {
     // 读取目录中的文件
-    const files = await fs.readdir(dir);
-    for (let file of files){
+    const files = fs.readdirSync(dir);
+    for (let file of files) {
         const filePath = path.join(dir, file);
         const stat = fs.statSync(filePath);
 
@@ -75,12 +76,12 @@ const readFiles = async (dir, extensions) => {
                     base64Data[fileName] = saveContent;
                 } else {
                     // 获取文件的 MIME 类型
-                    const mimeType = await getMimeType(fileContent,filePath);
+                    const mimeType = await getMimeType(fileContent, filePath);
                     base64Data[fileName] = `data:${mimeType};base64,${fileContent.toString('base64')}`;
                 }
             }
         }
-    };
+    }
 };
 
 // 获取对应类型的扩展名
@@ -91,10 +92,14 @@ if (extensions.length === 0) {
 }
 
 // 读取指定目录的文件
-readFiles(directoryPath, extensions);
+readFiles(directoryPath, extensions)
+    .then(() => {
+        // 输出到 base64_special_types.js 文件
+        const outputContent = `var base64SpecialTypesData = ${JSON.stringify(base64Data, null, 2)};`;
+        fs.writeFileSync(outputFile, outputContent);
 
-// 输出到 base64_special_types.js 文件
-const outputContent = `var base64SpecialTypesData = ${JSON.stringify(base64Data, null, 2)};`;
-fs.writeFileSync(outputFile, outputContent);
-
-console.log(`Base64 ${type} 文件数据已成功输出到 ${outputFile}`);
+        console.log(`Base64 ${type} 文件数据已成功输出到 ${outputFile}`);
+    })
+    .catch(
+        e => console.log('error', e)
+    );
