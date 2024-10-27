@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const getMimeType = require('./mime-types');
+const toDataUrl = require("./toDataUrl");
 
 function stringToBoolean(str) {
     if (typeof str === 'string') {
@@ -18,7 +19,7 @@ const type = process.argv[2].toLowerCase(); // 从命令行参数获取文件类
 const directoryPath = process.argv[3]; // 从命令行参数获取目录路径
 const noToBase64 = stringToBoolean(process.argv[4] || false); // 从命令行参数获取是否不转化为base64
 const pathPrefix = process.argv[5] || false; // 从命令行参数获取是否在前面加prefix
-const outputFile = 'base64_special_types.js';
+const outputFile = 'base64Assets.js';
 
 // 检查传入的目录路径和文件类型
 if (!type || !directoryPath) {
@@ -76,8 +77,9 @@ const readFiles = async (dir, extensions) => {
                     base64Data[fileName] = saveContent;
                 } else {
                     // 获取文件的 MIME 类型
-                    const mimeType = await getMimeType(fileContent, filePath);
-                    base64Data[fileName] = `data:${mimeType};base64,${fileContent.toString('base64')}`;
+                    // const mimeType = await getMimeType(fileContent, filePath);
+                    // base64Data[fileName] = `data:${mimeType};base64,${fileContent.toString('base64')}`;
+                    base64Data[fileName] = toDataUrl(fileContent, filePath);
                 }
             }
         }
@@ -94,8 +96,8 @@ if (extensions.length === 0) {
 // 读取指定目录的文件
 readFiles(directoryPath, extensions)
     .then(() => {
-        // 输出到 base64_special_types.js 文件
-        const outputContent = `var base64SpecialTypesData = ${JSON.stringify(base64Data, null, 2)};`;
+        // 输出到 base64Assets.js 文件
+        const outputContent = `window.base64Assets = ${JSON.stringify(base64Data, null, 2)};`;
         fs.writeFileSync(outputFile, outputContent);
 
         console.log(`Base64 ${type} 文件数据已成功输出到 ${outputFile}`);
