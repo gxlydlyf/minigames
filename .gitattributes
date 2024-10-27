@@ -1,1 +1,2 @@
 raw/StickWarLegacy.html filter=lfs diff=lfs merge=lfs -text
+min/StickWarLegacy.html filter=lfs diff=lfs merge=lfs -text
