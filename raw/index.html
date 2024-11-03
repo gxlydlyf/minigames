@@ -120,10 +120,10 @@
         <p class="card-content-description"></p>
         <div class="card-content-other">
             <p>平台: <span class="card-content-platform"></span></p>
-            <div class="card-content-from-container" title="跳转到来源">
+            <a class="card-content-from-container" title="跳转到来源" target="_blank">
                 <div class="card-content-from-triangle"></div>
                 <svg class="card-content-from-icon" xmlns="http://www.w3.org/2000/svg" width="15px" height="15px" viewBox="0 0 24 24"><path fill="currentColor" d="M13 14c-3.36 0-4.46 1.35-4.82 2.24C9.25 16.7 10 17.76 10 19a3 3 0 0 1-3 3a3 3 0 0 1-3-3c0-1.31.83-2.42 2-2.83V7.83A2.99 2.99 0 0 1 4 5a3 3 0 0 1 3-3a3 3 0 0 1 3 3c0 1.31-.83 2.42-2 2.83v5.29c.88-.65 2.16-1.12 4-1.12c2.67 0 3.56-1.34 3.85-2.23A3.01 3.01 0 0 1 14 7a3 3 0 0 1 3-3a3 3 0 0 1 3 3c0 1.34-.88 2.5-2.09 2.86C17.65 11.29 16.68 14 13 14m-6 4a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1a1 1 0 0 0-1-1M7 4a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1a1 1 0 0 0-1-1m10 2a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1a1 1 0 0 0-1-1"/></svg>
-            </div>
+            </a>
         </div>
     </div>
 </div>`);
@@ -141,6 +141,7 @@
             }
             var fromContainer = card.find('.card-content-from-container');
             if (from) {
+                fromContainer.attr('href', from);
                 fromContainer.bind('click', function (e) {
                     window.open(from);
                     e.preventDefault();
@@ -152,11 +153,17 @@
             if (!path) {
                 path = title;
             }
-            path += '.html'
-            card.bind('click', function () {
+            path += '.html';
+
+            const parentElement = $('<a target="_blank"></a>');
+            parentElement.append(card);
+            parentElement.attr('href', path);
+            parentElement.bind('click', function (e) {
                 window.open(path);
+                e.preventDefault();
+                e.stopPropagation();
             });
-            cardContainer.append(card);
+            cardContainer.append(parentElement);
         }
         const a = function (name, path, description, platform, from, img) {
             return {
@@ -228,6 +235,13 @@
                 `比较纯净的五子棋`,
                 CMP,
                 "https://haiyong.site/moyu/wzq-2/"
+            ),
+            a(
+                '五子棋',
+                'Gobang8',
+                `支持人机也支持双人。五子棋起源于中国，史书中“日月如合璧，五星如连珠”。主要流行于华人和汉字文化圈，是世界上最古老的棋。`,
+                CMP,
+                "https://www.wuziqi123.com/"
             ),
             a(
                 '扫雷',
@@ -614,6 +628,101 @@
                 '羊了个羊小黑子游戏',
                 CMP,
                 "https://cdn.198434.com/cli/H5/sheep2sheepkun/"
+            ),
+            a(
+                '一笔连',
+                'OneStrokeConnect',
+                '《一笔连》是一款策略类网页游戏。经典的一笔划玩法,让你开动脑筋杀掉大把时间，点击每个光圈原点来让线段进行连接。',
+                CMP,
+                "https://www.yibilian.cn/"
+            ),
+            a(
+                '大便超人',
+                'SuperPoop',
+                '输入一个你讨厌人的名字或者不输入名字跳过该步骤，然后点击【点击这里进入】，游戏开始啦！选择游戏界面右侧的那列带有数字的小圆点就可以开始发泄了。尝试大便不同的“出场”方式来折磨你讨厌的人！',
+                Computer,
+                "https://oldswf.com/game/28225"
+            ),
+            a(
+                '死亡公路Ⅰ',
+                '',
+                'Road of the Dead汉化版。主人公所在的城市已经被活死人占领，而且主人公还被众多不明真相的士兵囚禁了起来，你要控制这个主人公驾驶着他的野马跑车逃出这里，注意你可以撞开道路上的僵尸和士兵但是你的汽车也会有相应的破损。(70MB)',
+                Computer,
+                "https://www.u77game.net/flash/622.html"
+            ),
+            a(
+                'Road of the Dead',
+                '',
+                '死亡公路。主人公所在的城市已经被活死人占领，而且主人公还被众多不明真相的士兵囚禁了起来，你要控制这个主人公驾驶着他的野马跑车逃出这里，注意你可以撞开道路上的僵尸和士兵但是你的汽车也会有相应的破损。(70MB)',
+                Computer,
+                "https://www.silvergames.com/en/road-of-dead"
+            ),
+            a(
+                '死亡实验室',
+                '',
+                'Lab of the Dead汉化版。玩家是一个生化博士，终于有了用武之地，玩家开始研究僵尸的实验，这是一个非人道但是很无奈的实验记录，在实验中玩家饲养、攻击、实验僵尸。看看僵尸做出的反应，试图更好地了解僵尸，解密僵尸。(75MB)',
+                CMP,
+                "https://www.u77game.net/h5/50.html"
+            ),
+            a(
+                'Lab of the Dead',
+                '',
+                '死亡实验室。玩家是一个生化博士，终于有了用武之地，玩家开始研究僵尸的实验，这是一个非人道但是很无奈的实验记录，在实验中玩家饲养、攻击、实验僵尸。看看僵尸做出的反应，试图更好地了解僵尸，解密僵尸。(75MB)',
+                CMP,
+                "https://www.kongregate.com/games/EvilDog/lab-of-the-dead"//https://respeed.chromiumer.com/
+            ),
+            a(
+                'Segway of The Dead',
+                'SegwayOfTheDead',
+                '只有一辆 segway 车辆，您必须在僵尸启示录中幸存下来。该游戏具有许多游戏模式和许多需要升级的东西。从故事模式开始，您将经历一系列激动人心的 200 个动感十足且令人心痛的任务。（这是一个愚人节游戏，永远不可能通关）(40MB)',
+                Computer,
+                "https://www.newgrounds.com/portal/view/614276"//https://respeed.chromiumer.com/
+            ),
+            a(
+                '死亡公路Ⅱ',
+                '',
+                'Road of the Dead 2汉化版。一款火爆的僵尸小游戏，时隔几年，经典续集终于诞生，给玩家带了更多的游戏模式，更加疯狂的游戏画面，更加有趣的挑战，喜欢僵尸小游戏的朋友千万不要错过了。游戏中，整个世界遭到生化病毒的蔓延，僵尸肆虐，两个奋战的士兵幸存了下来，但是现在他们还得继续逃亡生涯，玩家的任务就是帮助他们驾驶汽车逃命，消灭僵尸，躲避障碍，尽可能长时间的生存下去。(95MB)',
+                Computer,
+                "https://www.u77game.net/h5/50.html"
+            ),
+            a(
+                'Road of the Dead 2',
+                '',
+                '死亡公路Ⅱ。一款火爆的僵尸小游戏，时隔几年，经典续集终于诞生，给玩家带了更多的游戏模式，更加疯狂的游戏画面，更加有趣的挑战，喜欢僵尸小游戏的朋友千万不要错过了。游戏中，整个世界遭到生化病毒的蔓延，僵尸肆虐，两个奋战的士兵幸存了下来，但是现在他们还得继续逃亡生涯，玩家的任务就是帮助他们驾驶汽车逃命，消灭僵尸，躲避障碍，尽可能长时间的生存下去。(100MB)',
+                Computer,
+                "https://www.kongregate.com/games/evildog/road-of-the-dead-2"//https://respeed.chromiumer.com/
+            ),
+            a(
+                "Chainsaw the Children",
+                'ChainsawTheChildren',
+                `电锯狂魔。* 点击 A 摆动刀片，按住 A 伸出刀片。
+* 你可以通过拿出你的锯子来砍伐树木和杂耍孩子。你能玩弄一个孩子多少次？
+* 完全砍伐树木以寻找汽油。
+* 通过做花哨的废话来获得风格点！（即。在空中杂耍，然后在他们回来时将它们切成两半）`,
+                Computer,
+                "https://uploads.ungrounded.net/71000/71851_chainsaw_game.swf"//https://proxy.chromiumer.com/files/71851_chainsaw_game.swf  https://respeed.chromiumer.com/
+            ),
+            a(
+                "Dad'n me",
+                'DadAndMe',
+                `狂扁小朋友。按 Q 切换质量。一些用户可能需要将其切换为 'low'。
+A = 轻刺；
+S = 重度攻击；
+箭头 = 步行。
+尝试使用组合系统以尽可能有效地杀死。在镇上糟糕的地方遇见爸爸。`,
+                Computer,
+                "https://www.newgrounds.com/portal/view/254456"//https://uploads.ungrounded.net/254000/254456_DadNMeNewgrounds.swf
+            ),
+            a(
+                "Dad'n me",
+                'DadAndMeInvincible',
+                `狂扁小朋友无敌版。按 Q 切换质量。一些用户可能需要将其切换为 'low'。
+A = 轻刺；
+S = 重度攻击；
+箭头 = 步行。
+尝试使用组合系统以尽可能有效地杀死。在镇上糟糕的地方遇见爸爸。`,
+                Computer,
+                "https://oldswf.com/game/94721"
             ),
         ];
         for (let i = 0; i < list.length; i++) {

@@ -65,7 +65,7 @@ const readFiles = async (dir, extensions) => {
                 if (pathPrefix !== false) {
                     fileName = pathPrefix + fileName;
                 }
-                console.log('save:', fileName)
+                console.log('save:', fileName);
                 if (noToBase64) {
                     let saveContent = fileContent.toString('utf-8');
                     if (type === 'json') {
@@ -79,7 +79,7 @@ const readFiles = async (dir, extensions) => {
                     // 获取文件的 MIME 类型
                     // const mimeType = await getMimeType(fileContent, filePath);
                     // base64Data[fileName] = `data:${mimeType};base64,${fileContent.toString('base64')}`;
-                    base64Data[fileName] = toDataUrl(fileContent, filePath);
+                    base64Data[fileName] = await toDataUrl(fileContent, filePath);
                 }
             }
         }

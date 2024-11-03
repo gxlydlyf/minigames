@@ -167,6 +167,20 @@ async function embedResources(workDir, inputFileName) {
                         console.warn(`CSS not found: ${cssPath}`);
                     }
                 }),
+            // 处理 <link> 标签 (Icon)
+            ...$('link[rel="Shortcut Icon"]')
+                .map(async (_, link) => {
+                    const $link = $(link);
+                    const href = $link.attr('href');
+                    const iconPath = path.join(workDir, href);
+
+                    if (fs.existsSync(iconPath)) {
+                        $link.href = await fileToBase64(iconPath);
+                        console.log('embed icon:', iconPath);
+                    } else {
+                        console.warn(`icon not found: ${iconPath}`);
+                    }
+                }),
             // 处理 <img> 标签
             ...$('img[src]')
                 .map(async (_, img) => {
